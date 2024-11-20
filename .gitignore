@@ -2,4 +2,6 @@
 funcloc_psychopy_Alex.py
 localizer.psyexp
 get_stimuli_names.py
-stimuli
+
+# Untracked folders
+stimuli/
