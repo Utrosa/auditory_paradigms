@@ -1,0 +1,12 @@
+#Expyriment 0.10.0 (Python 3.7.16), .xpd-file, coding: cp1252
+#date: Fri Nov 22 2024 14:40:08
+#--EXPERIMENT INFO
+#e mainfile: localizer_expyriment.py
+#e sha1: dd136b
+#e modules: 
+#e Experiment: Localizer
+#e no between subject factors
+#--SUBJECT INFO
+#s id: 2
+subject_id,trial_no,keys_trial,RTs_trial,sound_IDs_trial
+2,1,"[[None, '1', '4', '1', '4', '4', '1', '4', '1', '4']]","[[None, 845, 697, 624, 1088, 1423, 766, 1067, 1007, 969]]","{'stimuli\\s3_voice_15_ramp10.wav', 'stimuli\\s3_voice_5_ramp10.wav', 'stimuli\\s3_speech_9_ramp10.wav', 'stimuli\\s3_tools_17_ramp10.wav', 'stimuli\\s3_animal_2_ramp10.wav', 'stimuli\\s3_speech_11_ramp10.wav', 'stimuli\\s3_tools_20_ramp10.wav', 'stimuli\\s3_animal_5_ramp10.wav', 'stimuli\\s3_tools_2_ramp10.wav'}"

@@ -1,0 +1,68 @@
+#Expyriment 0.10.0 (Python 3.7.16), .xpe-file, coding: cp1252
+#date: Fri Nov 22 2024 14:40:08
+#sha1: dd136b
+#modules: 
+#display: size=(800, 600), window_mode=True, open_gl=2
+#os: uname_result(system='Windows', node='DESKTOP-DI75JFP', release='10', version='10.0.26100', machine='AMD64', processor='Intel64 Family 6 Model 140 Stepping 1, GenuineIntel')
+Time,Type,Event,Value,Detail,Detail2
+406,design,log,
+#design: #exp: Localizer
+#design: #dvn: trial_no,keys_trial,RTs_trial,sound_IDs_trial
+#design: block_cnt,block_id,trial_cnt,trial_id
+406,design,logged,
+406,Experiment,started
+409,Stimulus,presented,4
+5472,Keyboard,received,50,wait
+6287,Keyboard,received,115,wait
+6288,Stimulus,presented,1
+36290,Stimulus,presented,0
+36292,Stimulus,presented,1
+36309,Stimulus,presented,1
+36309,Stimulus,played,b'stimuli\\s3_voice_5_ramp10.wav'
+41811,Keyboard,received,None,wait_char
+41812,Stimulus,presented,1
+41812,Stimulus,played,b'stimuli\\s3_animal_5_ramp10.wav'
+43158,Keyboard,received,1,wait_char
+43161,Stimulus,presented,2
+43665,Stimulus,presented,1
+43665,Stimulus,played,b'stimuli\\s3_tools_2_ramp10.wav'
+44863,Keyboard,received,4,wait_char
+44864,Stimulus,presented,3
+45365,Stimulus,presented,1
+45365,Stimulus,played,b'stimuli\\s3_animal_2_ramp10.wav'
+46490,Keyboard,received,1,wait_char
+46492,Stimulus,presented,2
+46993,Stimulus,presented,1
+46993,Stimulus,played,b'stimuli\\s3_speech_9_ramp10.wav'
+48582,Keyboard,received,4,wait_char
+48583,Stimulus,presented,3
+49084,Stimulus,presented,1
+49084,Stimulus,played,b'stimuli\\s3_speech_11_ramp10.wav'
+51009,Keyboard,received,4,wait_char
+51010,Stimulus,presented,3
+51511,Stimulus,presented,1
+51512,Stimulus,played,b'stimuli\\s3_speech_11_ramp10.wav'
+52780,Keyboard,received,1,wait_char
+52782,Stimulus,presented,3
+53283,Stimulus,presented,1
+53283,Stimulus,played,b'stimuli\\s3_tools_20_ramp10.wav'
+54852,Keyboard,received,4,wait_char
+54853,Stimulus,presented,3
+55354,Stimulus,presented,1
+55354,Stimulus,played,b'stimuli\\s3_tools_17_ramp10.wav'
+56862,Keyboard,received,1,wait_char
+56864,Stimulus,presented,2
+57364,Stimulus,presented,1
+57365,Stimulus,played,b'stimuli\\s3_voice_15_ramp10.wav'
+58835,Keyboard,received,4,wait_char
+58837,Stimulus,presented,3
+59338,Stimulus,presented,1
+89339,Stimulus,presented,0
+89349,Stimulus,presented,1
+89365,Stimulus,presented,1
+89365,Stimulus,played,b'stimuli\\s3_speech_18_ramp10.wav'
+92738,Experiment,paused
+92745,Stimulus,presented,90
+93667,Keyboard,received,y,wait_char
+93667,Experiment,ended
+93684,Data,saved

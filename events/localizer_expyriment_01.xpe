@@ -1,0 +1,42 @@
+#Expyriment 0.10.0 (Python 3.7.16), .xpe-file, coding: cp1252
+#date: Fri Nov 22 2024 14:31:11
+#sha1: dd136b
+#modules: 
+#display: size=(800, 600), window_mode=True, open_gl=2
+#os: uname_result(system='Windows', node='DESKTOP-DI75JFP', release='10', version='10.0.26100', machine='AMD64', processor='Intel64 Family 6 Model 140 Stepping 1, GenuineIntel')
+Time,Type,Event,Value,Detail,Detail2
+1052,design,log,
+#design: #exp: Localizer
+#design: #dvn: trial_no,keys_trial,RTs_trial,sound_IDs_trial
+#design: block_cnt,block_id,trial_cnt,trial_id
+1052,design,logged,
+1052,Experiment,started
+1061,Stimulus,presented,4
+3605,Keyboard,received,50,wait
+4019,Keyboard,received,115,wait
+4022,Stimulus,presented,0
+4041,Stimulus,presented,1
+4058,Stimulus,presented,1
+4058,Stimulus,played,b'stimuli\\s3_speech_8_ramp10.wav'
+9561,Keyboard,received,None,wait_char
+9563,Stimulus,presented,1
+9563,Stimulus,played,b'stimuli\\s3_tools_1_ramp10.wav'
+15064,Keyboard,received,None,wait_char
+15066,Stimulus,presented,1
+15066,Stimulus,played,b'stimuli\\s3_tools_3_ramp10.wav'
+20568,Keyboard,received,None,wait_char
+20570,Stimulus,presented,1
+20570,Stimulus,played,b'stimuli\\s3_animal_1_ramp10.wav'
+26072,Keyboard,received,None,wait_char
+26073,Stimulus,presented,1
+26073,Stimulus,played,b'stimuli\\s3_tools_5_ramp10.wav'
+31575,Keyboard,received,None,wait_char
+31577,Stimulus,presented,1
+31577,Stimulus,played,b'stimuli\\s3_voice_5_ramp10.wav'
+37079,Keyboard,received,None,wait_char
+37081,Stimulus,presented,1
+37081,Stimulus,played,b'stimuli\\s3_speech_19_ramp10.wav'
+42027,Experiment,paused
+42035,Stimulus,presented,90
+43151,Keyboard,received,y,wait_char
+43151,Experiment,ended
