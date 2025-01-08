@@ -1,0 +1,35 @@
+#Expyriment 0.10.0 (Python 3.7.16), .xpe-file, coding: cp1252
+#date: Wed Jan 08 2025 21:52:48
+#sha1: 7beece
+#modules: 
+#display: size=(800, 600), window_mode=True, open_gl=2
+#os: uname_result(system='Windows', node='DESKTOP-DI75JFP', release='10', version='10.0.26100', machine='AMD64', processor='Intel64 Family 6 Model 140 Stepping 1, GenuineIntel')
+Time,Type,Event,Value,Detail,Detail2
+563,design,log,
+#design: #exp: Timing
+#design: #dvn: TRIAL_NO,NO_TONES,DEV,DEV_TYPE,DEV_LOC,ISI,RESPONSE
+#design: block_cnt,block_id,trial_cnt,trial_id
+563,design,logged,
+563,Experiment,started
+1831,Keyboard,received,115,wait
+1832,stdout,received,'3.4491152'
+1834,Stimulus,presented,0
+1852,Stimulus,presented,1
+2152,Stimulus,played,b'C:\\Users\\monik\\AppData\\Local\\Temp\\expyriment_hivvwqbv\\freq440_dur50.0_0o4wmdxs.wav'
+2257,Stimulus,played,b'C:\\Users\\monik\\AppData\\Local\\Temp\\expyriment_hivvwqbv\\freq440_dur50.0_g8sugfzg.wav'
+2362,Stimulus,played,b'C:\\Users\\monik\\AppData\\Local\\Temp\\expyriment_hivvwqbv\\freq440_dur50.0_ed13wnlh.wav'
+2467,Stimulus,played,b'C:\\Users\\monik\\AppData\\Local\\Temp\\expyriment_hivvwqbv\\freq440_dur50.0_xto9p3gz.wav'
+2571,Stimulus,played,b'C:\\Users\\monik\\AppData\\Local\\Temp\\expyriment_hivvwqbv\\freq440_dur50.0_xto9p3gz.wav'
+2676,Stimulus,played,b'C:\\Users\\monik\\AppData\\Local\\Temp\\expyriment_hivvwqbv\\freq440_dur50.0_f19rt737.wav'
+2783,Stimulus,presented,0
+2800,Stimulus,presented,1
+3100,Keyboard,received,50,check
+3100,Stimulus,played,b'C:\\Users\\monik\\AppData\\Local\\Temp\\expyriment_hivvwqbv\\freq440_dur50.0_gepjpxav.wav'
+3264,Stimulus,played,b'C:\\Users\\monik\\AppData\\Local\\Temp\\expyriment_hivvwqbv\\freq440_dur50.0_ix_uolw0.wav'
+3427,Stimulus,played,b'C:\\Users\\monik\\AppData\\Local\\Temp\\expyriment_hivvwqbv\\freq440_dur50.0_wo9ztp5g.wav'
+3590,Stimulus,played,b'C:\\Users\\monik\\AppData\\Local\\Temp\\expyriment_hivvwqbv\\freq440_dur50.0_e18zq0_r.wav'
+3753,Stimulus,played,b'C:\\Users\\monik\\AppData\\Local\\Temp\\expyriment_hivvwqbv\\freq440_dur50.0_4pfpn6d3.wav'
+3916,Stimulus,played,b'C:\\Users\\monik\\AppData\\Local\\Temp\\expyriment_hivvwqbv\\freq440_dur50.0_b4_4fanp.wav'
+4081,Stimulus,played,b'C:\\Users\\monik\\AppData\\Local\\Temp\\expyriment_hivvwqbv\\freq440_dur50.0_b4_4fanp.wav'
+4244,Experiment,ended
+4261,Data,saved

@@ -92,19 +92,20 @@ control.initialize(exp)
 
 # CREATE & PRELOAD THE STIMULI -----------------------------------------------------------------
 keyboard = io.Keyboard()
-canvas   = stimuli.Canvas(size=params["CANVAS_SIZE"], colour=params["BLACK"]); canvas.preload()
-cross = stimuli.FixCross(size=params["FIXATION_CROSS_SIZE"], position=params["FIXATION_CROSS_POSITION"], 
-						 line_width=params["FIXATION_CROSS_WIDTH"], colour=params["WHITE"]); cross.preload()
-tones_by_trial = create_and_preload_tones(TRIAL_PARAMS, params["TONE_DURATION"], params["TONE_FREQUENCY"], params["TONE_SAMPLERATE"], 
-	                             params["TONE_BITDEPTH"])
+canvas = stimuli.Canvas(size = params["CANVAS_SIZE"], colour = params["BLACK"]); canvas.preload()
+cross = stimuli.FixCross(size = params["FIXATION_CROSS_SIZE"], position = params["FIXATION_CROSS_POSITION"], 
+						 line_width = params["FIXATION_CROSS_WIDTH"], colour = params["WHITE"]); cross.preload()
+tones_by_trial = create_and_preload_tones(TRIAL_PARAMS, params["TONE_DURATION"], params["TONE_FREQUENCY"], 
+										  params["TONE_SAMPLERATE"], params["TONE_BITDEPTH"])
 
 # STORE DATA -----------------------------------------------------------------------------------
-exp.add_data_variable_names(['TRIAL_NO', 'NO_TONES', 'DEV', 'DEV_TYPE', 'DEV_LOC', 'ISI'])
+exp.add_data_variable_names(['TRIAL_NO', 'NO_TONES', 'DEV', 'DEV_TYPE', 'DEV_LOC', 'ISI', 'RESPONSE'])
 
 # RUN THE EXPERIMENT ---------------------------------------------------------------------------
 control.start(skip_ready_screen=True)    # Start the experiment without the ready screen
 keyboard.wait(keys=[misc.constants.K_s]) # Wait for S trigger from the MRI scanner
 
+# Loop through trials
 for rep, trial in enumerate(TRIAL_PARAMS):
 	no_tones = trial[0]
 	dev = trial[1]
@@ -115,12 +116,15 @@ for rep, trial in enumerate(TRIAL_PARAMS):
 	canvas.present()
 	cross.present()
 	exp.clock.wait(ITI)
+	key = keyboard.check(keys=[misc.constants.K_1, misc.constants.K_2,
+			misc.constants.K_3, misc.constants.K_4])
 
+	# Play sequence
+	trial_timestamp = misc.Clock.monotonic_time()
+	print(trial_timestamp)
 	for count, t in enumerate(trial_tones):
 		keyboard.check(keys=[misc.constants.K_ESCAPE]) # Enable stopping the exp. with ESC button
-		# key = keyboard.check(keys=[misc.constants.K_1, misc.constants.K_2,  # Only the first occurrence is returned!
-		# 							misc.constants.K_3, misc.constants.K_4]) # All possible keys on the MRI response pad.
-	
+
 		# For late tones, the ISI before the diplaced tone is longer, ISI after shorter.
 		if dev_type == "late" and count == (dev_loc - 1): # ISI before
 			t.present()
@@ -143,8 +147,12 @@ for rep, trial in enumerate(TRIAL_PARAMS):
 		else:
 			t.present()
 			exp.clock.wait(isi)
-
-	exp.data.add([rep + 1, no_tones, dev, dev_type, dev_loc, isi])
+	
+	# Save data
+	if key == None:
+		exp.data.add([rep + 1, no_tones, dev, dev_type, dev_loc, isi, key])
+	else:
+		exp.data.add([rep + 1, no_tones, dev, dev_type, dev_loc, isi, chr(key)]) # Conver ASCII to character
 
 # END THE EXPERIMENT ----------------------------------------------------------------------------
 control.end()
