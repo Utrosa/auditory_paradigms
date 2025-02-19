@@ -1,7 +1,13 @@
 # Untracked files
-funcloc_psychopy_Alex.py
 localizer.psyexp
 get_stimuli_names.py
+detection_accuracy_MRI-response.py
+localizer_datafile.py
 
 # Untracked folders
 stimuli/
+localizer_tests/
+examples_alex/
+data/
+events/
+bids_output/

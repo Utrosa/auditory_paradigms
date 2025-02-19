@@ -12,7 +12,6 @@ params = {
 	
 	# Experiment status. This will impact the filenames.
 	"RUN"     : "1",		  # No need for zeros before integers here.
-	"STAGE"   : "DEVELOPING", # Developing, piloting, or testing.
 	"SESSION" : "01", 		  # Prefixed with arbitrary number of 0s for consistent indentation!
 
 	# Local setup
@@ -325,7 +324,7 @@ soundtrack = create_soundtrack(sound_strata = list(sound_strata.values()), seque
 								rep_prob = params["SOUND_REP_PROB"], sequence_no = params["NO_SEQUENCES"])
 
 # 6. RUN THE EXPERIMENT ---------------------------------------------------------------------------
-session = params["SESSION"]; stage = params["STAGE"]; run = params["RUN"] # Extract info for log's filename.
+session = params["SESSION"]; run = params["RUN"] # Extract info for log's filename.
 control.start(skip_ready_screen = True) # Start the experiment without the ready screen and wait for trigger from the MRI.
 
 # Decide randomly to start with silence or sound.
@@ -333,7 +332,7 @@ start_with_sound = random.choice([True, False]) # The same on each trial.
 control.defaults.fast_response = True # Enable background drawing for faster performance.
 
 # BIDS-formatted EventFile: onset [sec], duration [sec], type [key/sound], correct [HIT/FALSE_ALARM/...].
-event_output = io.OutputFile(suffix = params["STAGE"], directory = f'bids_output_{stage}')
+event_output = io.OutputFile(suffix = params["SESSION"], directory = f'bids_output')
 event_output.write("onset;duration;stim_file;response;key;response_time\n") # Column names.
 
 # Instructions & Trigger.

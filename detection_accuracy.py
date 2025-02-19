@@ -1,7 +1,7 @@
 #! /usr/bin/env python
+# Time-stamp: <2025-21-01 m.utrosa@bcbl.eu>
 
 # PREPARATION -----------------------------------------------------------------------------
-
 ## Start by importing the neccesary modules and packages. If you do not have the python packages
 ## installed on your laptop, you can install them with: pip install {package name}.
 import random
@@ -29,62 +29,103 @@ def create_and_preload_tones(trials, tone_duration, tone_frequency, tone_sampler
 
     return tones_by_trial
 
+def calculate_trial_duration(trial_list, parameter_list):
+	durations = []
+	for combo in trial_list:	
+		nodev_dur = combo[0] * parameter_list["TONE_DURATION"] + (combo[0] - 1) * combo[-1]
+		if combo[2] == "early":
+			duration =  nodev_dur - combo[1]
+			durations.append(duration)
+		elif combo[2] == "late":
+			duration = nodev_dur + combo[1]
+			durations.append(duration)
+		else:
+			durations.append(nodev_dur)
+	return durations
+
 # PARAMETERS -------------------------------------------------------------------------------
 params = {
 
 	# Visual
-	"CANVAS_SIZE" : (1920, 1080), # monitor resolution
-
+	"CANVAS_SIZE" : (1920, 1080), # Monitor resolution. PC: 1920, 1080. MRI: 1024, 768.
 	"FIXATION_CROSS_SIZE"     : (20, 20),
 	"FIXATION_CROSS_POSITION" : (0, 0),
 	"FIXATION_CROSS_WIDTH"    : 4,
+	"HEADING_SIZE" : 30, 
+	"TEXT_SIZE"    : 20,
+	"TEXT" 		   : f"Identify the sound that is displaced when hearing it. \n"
+					  "Press a button to start.",
 
 	# Audio
 	"MIN_TONES": 3, # min. no. of tones in a single sequence
 	"MAX_TONES" : 7,
 	"TONE_DURATION" : 50,
 	"TONE_FREQUENCY" : 440,
-	"TONE_SAMPLERATE" : 48000, # Change depending on the speakers!!
-	"TONE_BITDEPTH" : 16,       # Change depending on the speakers!!
+	"TONE_SAMPLERATE" : 48000,  # Change depending on the speakers
+	"TONE_BITDEPTH" : 16,       # Change depending on the speakers
 
 	# Colors in RGB
 	"BLACK" : (0, 0, 0),	   # screen background
 	"WHITE" : (255, 255, 255), # fixation cross
-	"GREEN" : (50,205,50),     # correct response
-	"RED"   : (204,0,0),       # incorrect reponse
+	"GREEN" : (50, 205, 50),   # correct response
+	"RED"   : (204, 0, 0),     # incorrect reponse
+
+	# Experiment Structure
+	"ITI" : 1500, # Should be longer than the largest ISI and DEV.
+	"NO_TRIALS" : 2,
+	"TRIAL_DURATION" : 1109 # Should be shorter than ITI
 }
 
 # EXPERIMENT STRUCTURE ----------------------------------------------------------------------
-
-# NO_TRIALS: Number of trial repetitions. A trial is a sequence of tones.
 # ITI: Inter Trial Interval (time between two sequences, i.e., trials).
-NO_TRIALS = 2
-ITI = 300 # msec
-
+# NO_TRIALS: Number of trial repetitions. A trial is a sequence of tones.
 # NO_TONES: Integer number of sounds in the sequence.
 # DEV: Absolute size of tone's timing deviation in milliseconds.
 # DEV_TYPE: Type of deviation (early or late).
 # DEV_LOC: Position of the timing deviation in the sequence.
 # ISI: Inter Stimulus Interval (time between presentation of two sequential tones).
-DEV = random.sample(range(0, 1001), 1000)
 NO_TONES = random.sample(range(params["MIN_TONES"], params["MAX_TONES"]), params["MAX_TONES"] - params["MIN_TONES"])
-DEV_TYPE = ['early', 'late']
-DEV_LOC = random.sample(range(params["MIN_TONES"] + 1, params["MAX_TONES"]), params["MAX_TONES"] - (params["MIN_TONES"] + 1)) # First three tones are never displaced.
-ISI = random.sample(range(50, 250), NO_TRIALS) # By intuition, I think 50 msec ISI should be long enough to hear sound as separate but see Abel & MTD studies ----- TO-DO
+DEV      = np.random.randn(1,3) # SEE PYTHON COURSE 4
+DEV_TYPE = ['early', 'on_time', 'late']
+DEV_LOC  = random.sample(range(params["MIN_TONES"] + 1, params["MAX_TONES"]), params["MAX_TONES"] - (params["MIN_TONES"] + 1)) # First three tones are never displaced.
+DEV_LOC.insert(0, 0) # Include a location 0 for cases where there is no deviation in the sequence.
+ISI      = random.sample(range(60, 600), 3)
 
-# ALL_COMBOS: List of tuples. The tuple contains NO_TONES, ISI, DEV, DEV_TYPE, DEV_LOC. The list
-# contains all posible combinations of these parameters. Trials are randomly sampled from it on 
-# each run of the experiment.
-
+# ALL_COMBOS: List of tuples. The tuple contains NO_TONES, DEV, DEV_TYPE, DEV_LOC, and ISI.
+# The list contains all posible combinations of these parameters. 
+# FILTERED_COMBOS: ALL_COMBOS with constraints.
+	# The location of deviation has to be <= to the number of tones in the sequence.
+	# If DEV == 0, then DEV_TYPE has to be "on_time" and DEV_LOC has to be "None".
+	# If DEV != 0, then DEV_LOC cannot be 0.
+	# Fixed duration of trials. 
+	# duration = no_tones * tone_duration + (no_tones - 1) * ISI +/- dev
+# TRIAL_PARAMS: a sequence of tones, repecting the parameters given in the tuple of FILTERED_COMBOS.
 ALL_COMBOS = list(product(NO_TONES, DEV, DEV_TYPE, DEV_LOC, ISI))
-# Constraint: location of deviation has to match number of tones in the sequence
-FILTERED_COMBOS = [combo for combo in ALL_COMBOS if combo[1] <= combo[0]]
-random.shuffle(FILTERED_COMBOS)
+FILTERED_COMBOS = [combo for combo in ALL_COMBOS if combo[3] <= combo[0]]
+VALID_COMBOS = [
+    combo for combo in FILTERED_COMBOS
+    if not (
+        (combo[2] == "on_time" and (combo[1] != 0 or combo[3] != 0)) or
+        (combo[2] != "on_time" and (combo[1] == 0 or combo[3] == 0)) or
+        (combo[1] == 0 and (combo[2] != "on_time" or combo[3] != 0)) or
+        (combo[3] == 0 and combo[1] != 0) or
+        (combo[3] == 0 and combo[2] != 0) or
+        (combo[3] != 0 and combo[1] == 0) or
+        (combo[3] != 0 and combo[2] == 0) or
+        (combo[2] == 0 and combo[1] != 0) or
+        (combo[2] != 0 and combo[1] == 0) or                       
+    	(((combo[0] * params["TONE_DURATION"] + (combo[0] - 1) * combo[-1]) - combo[1]) <= 0) or
+    	(combo[2] == "early" and combo[-1] > combo[1]) or
+    	(combo[2] == "late" and combo[-1] > combo[1])
+    )
+]
 
-# TRIALS: a sequence of tones, repecting the parameters given in the tuple of FILTERED_COMBOS.
-# During each trial, the code is "listening for key presses." A green fixation cross is presented, 
-# when a HIT occurs.
-TRIAL_PARAMS = random.sample(FILTERED_COMBOS, NO_TRIALS) # Without replacement ;)
+COMBO_DURATIONS = calculate_trial_duration(VALID_COMBOS, params)
+random_trial_duration = random.sample(list(np.unique(COMBO_DURATIONS)), 1)
+VALID_COMBOS_EQUAL_LENGTH = [combo for i, combo in enumerate(VALID_COMBOS) if COMBO_DURATIONS[i] == random_trial_duration[0]]
+
+# random.shuffle(VALID_COMBOS)
+TRIAL_PARAMS = random.sample(VALID_COMBOS_EQUAL_LENGTH, params["NO_TRIALS"]) # Without replacement ;) ----------------- USE ALL COMBINATIONS
 
 # INITIALIZE THE EXPERIMENT --------------------------------------------------------------------
 exp = design.Experiment(name="Timing")
@@ -92,8 +133,10 @@ control.initialize(exp)
 
 # CREATE & PRELOAD THE STIMULI -----------------------------------------------------------------
 keyboard = io.Keyboard()
+instructions = stimuli.TextScreen("Instructions", params["TEXT"], heading_size = params["HEADING_SIZE"], text_size = params["TEXT_SIZE"])
+instructions.preload()
 canvas = stimuli.Canvas(size = params["CANVAS_SIZE"], colour = params["BLACK"]); canvas.preload()
-cross = stimuli.FixCross(size = params["FIXATION_CROSS_SIZE"], position = params["FIXATION_CROSS_POSITION"], 
+cross  = stimuli.FixCross(size = params["FIXATION_CROSS_SIZE"], position = params["FIXATION_CROSS_POSITION"], 
 						 line_width = params["FIXATION_CROSS_WIDTH"], colour = params["WHITE"]); cross.preload()
 tones_by_trial = create_and_preload_tones(TRIAL_PARAMS, params["TONE_DURATION"], params["TONE_FREQUENCY"], 
 										  params["TONE_SAMPLERATE"], params["TONE_BITDEPTH"])
@@ -103,7 +146,9 @@ exp.add_data_variable_names(['TRIAL_NO', 'NO_TONES', 'DEV', 'DEV_TYPE', 'DEV_LOC
 
 # RUN THE EXPERIMENT ---------------------------------------------------------------------------
 control.start(skip_ready_screen=True)    # Start the experiment without the ready screen
-keyboard.wait(keys=[misc.constants.K_s]) # Wait for S trigger from the MRI scanner
+instructions.present()
+keyboard.wait(keys=[misc.constants.K_2]) # Press no. 2 when you read the instructions.
+keyboard.wait(keys=[misc.constants.K_s]) # Wait for S trigger from the MRI scanner. One S per TR.
 
 # Loop through trials
 for rep, trial in enumerate(TRIAL_PARAMS):
@@ -115,13 +160,13 @@ for rep, trial in enumerate(TRIAL_PARAMS):
 	trial_tones = tones_by_trial[rep]
 	canvas.present()
 	cross.present()
-	exp.clock.wait(ITI)
+	exp.clock.wait(params["ITI"])
+
+	# During each trial, the code is "listening for key presses."
 	key = keyboard.check(keys=[misc.constants.K_1, misc.constants.K_2,
 			misc.constants.K_3, misc.constants.K_4])
 
-	# Play sequence
-	trial_timestamp = misc.Clock.monotonic_time()
-	print(trial_timestamp)
+	# Play sequence ------ a soundwave in memory ----------------------------------------------- TO - D0
 	for count, t in enumerate(trial_tones):
 		keyboard.check(keys=[misc.constants.K_ESCAPE]) # Enable stopping the exp. with ESC button
 
