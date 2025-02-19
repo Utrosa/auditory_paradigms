@@ -34,12 +34,6 @@ params = {
 
 	"HEADING_SIZE" : 30, 
 	"TEXT_SIZE"    : 20,
-	# "HEADING"      : "INSTRUCCIONES",
-	# "TEXT" 		 : f"Tu tarea consiste en detectar si el sonido se ha repetido o no.\n"
-	# 				 "Una repetición de sonido ocurre cuando el sonido actual es igual al último.\n"
-	# 				 "\nPulse cualquier botón cuando se repita un sonido. Sé rápido/a.\n"
-	# 				 "Recibirás indicación: verde (correcto) y roja (incorrecto).\n"
-	# 				 "\nPulse cualquier botón para continuar.",
 	"HEADING" 	   : "INSTRUCTIONS",
 	"TEXT" 		   : f"Your task is to detect whether the sound has been repeated or not.\n"
 					  "A sound repetition is when the current sound is the same as the last one.\n"
@@ -363,4 +357,4 @@ for trial in range(params["NO_TRIALS"]):
 	event_output.save()
 
 # 7. END THE EXPERIMENT ---------------------------------------------------------------------------
-control.end(goodbye_text = "Thank you for participating!")
+control.end(goodbye_text = "Thank you! You can take a short break.")
