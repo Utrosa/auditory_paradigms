@@ -1,8 +1,8 @@
 # Untracked files
-.odt
-.ods
-.todo
-.txt
+*.odt
+*.ods
+*.todo
+*.txt
 
 # Untracked folders
 **/stimuli/
