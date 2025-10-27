@@ -9,5 +9,5 @@
 **/data/
 **/events/
 **/bids_output/
-**/__pycache__
-**/ipynb_checkpoints
+**/__pycache__/
+**/ipynb_checkpoints/
