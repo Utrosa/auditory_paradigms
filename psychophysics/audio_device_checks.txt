@@ -1,0 +1,18 @@
+# Check available hardware by: print(sd.query_devices())
+# Linux --> ALSA and PulseAudio (issues with mint)
+# Run inxi -A to check which sound servers are running
+# Print input and output of the devices currently active
+# print(sd.default.device)
+# print(sd.get_portaudio_version())
+# print(sd.query_hostapis())
+
+# Find by running
+# import pygame
+# pygame.mixer.pre_init()
+# pygame.mixer.init()
+# print(sdl2.audio.get_audio_device_names(False))
+
+# control.defaults.audiosystem_device = "Family 17h/19h HD Audio Controller Speaker + Headphones"
+# # control.defaults.audiosystem_sample_rate = 48000
+# print("Expyriment audio device:", control.defaults.audiosystem_device)
+# print("Expyriment audio device:", control.defaults.audiosystem_sample_rate)

@@ -1,0 +1,9 @@
+
+Monday:
+  ☐ Check that all deltas are taken per block with pandas from data
+  ☐ With the desired (ERC) span of deviations we have too many samples if I correct for the no-signal trials, so I think we should use the literature and limit the deviations for the physchophysics
+  ☐ Implement saving sounds per run (?)
+  ☐ Issue: responses are only saved if the key is pressed while the sequence is playing. Key presses after the sequence has finished (during ITI), are not saved. This is an issue if the last tone can be displaced - the response is only possible after the end of the sequence (tone duration is 100 msec which is too short for RT before the end)
+  Checks
+  ☐ Last tone is never displaced
+  ☐ Check that all stimuli are rms energy equalized

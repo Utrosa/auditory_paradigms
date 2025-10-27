@@ -1,7 +1,12 @@
 # Untracked files
+.odt
+.ods
+.todo
+.txt
 
 # Untracked folders
-localizer/stimuli/
-data/
-events/
-bids_output/
+**/stimuli/
+**/data/
+**/events/
+**/bids_output/
+**/__pycache__
