@@ -1,13 +1,7 @@
 # Untracked files
-localizer.psyexp
-get_stimuli_names.py
-detection_accuracy_MRI-response.py
-localizer_datafile.py
 
 # Untracked folders
-stimuli/
-localizer_tests/
-examples_alex/
+localizer/stimuli/
 data/
 events/
 bids_output/
