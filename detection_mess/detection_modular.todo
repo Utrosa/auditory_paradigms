@@ -1,0 +1,48 @@
+Modularity, clarity, and accessibility.
+
+Questions:
+  ☐ 64 deviations: 0 included as a deviation
+    ☐ Randomly select the deviations, each deviation should appear the same amount of times (across the experiment)
+    ☐ Logarithmically sampled (not like in the ERC): parametrize as a log (could also be linear)
+ ☐ 7 (arbitrary): last tone is not displaced - tones 4, 5, 6 are displaced
+ ☐ Inserting the localizer
+   ☐ S-key, keys, ...
+ 
+ Learning that if the expectations is in 4 and 5, it has to be in 6.
+ Psychophysics after fMRI - after.
+
+ Distractor task (to make them engaged) or a task related to the deviation.
+
+General:
+  ☐ Ensure free parameters: the code should be easy to use by others.
+  ☐ Create multiple modules with functions. The main module should have all classes and functions needed. Load the modules and classes from the same file.
+  ☐ Test functionality of each code element (class, function) separately. Debug and test these with “examples”, i.e., some sort of files which show how to use the functions or classes (i.e., short and simple paradigms to run in the fMRI). 
+    ☐ Unit tests for each function/class: py.test.
+  ☐ Only a short script should be necessary at the end to run the paradigm. This script would call the functions from the “main module script”.
+  ☐ Document your code. The goal is to make it openly-available. Working on it as a module to submit on github as a public repository.
+
+GitHub:
+  ☐ Update the repo this week @due (April 17th)
+
+Classes:
+  ☐ Document the classes @due (April 17th)
+
+  ☐ Log: harmonic tones better than pure tones
+  Naturalistic tones are not stationary (if it moves, it moves in the same way). Phonemes - dynamic.
+  Vowels: a, e, i (different pitch, ...) ... maybe harmonic complex tones.
+  Pure tones as building blocks of sounds.
+
+  ☐ Log: flag the frequency, deviation from expected onset, position in the sequence
+  ☐ Add probability of deviance too, no?
+  ☐ Check: Is amount of sequences needed as an attribute in Trials?
+  ☐ Check: Is amout of trials per block needed as an attribute in Blocks?
+  ☐ MRI sequence structure (for elegant run of the experiment)
+    ☐ Length of anatomical & functional sequences
+    ☐ Breaks
+    ☐ Trigger, indicating the start of the sequence
+
+Elegance:
+ ☐ Consistency: style the code in PEP 8 (Romain said there's an automatic way to do it).
+ ☐ Error handling: expect types of error (KeyError, ZeroDivisonError). Exceptions with try & except.
+ ☐ Use **kwargs for user “freedom” in defining extra things that you send somewhere in the function. Like printing or calculating smth extra …
+ ☐ Raise exceptions & assertions.
