@@ -562,7 +562,7 @@ for run in range(params["RUNS"]): # Runs == Blocks == Functional Acquisitions
 		loop += 1
 
 	# Save the log
-	event_output.rename(f"sub-{exp.subject:02d}_ses-{sesh}_task-{exp.name}_run-{run + 1:02d}_ts-{ts}_events.tsv")
+	event_output.rename(f"sub-{exp.subject:02d}_ses-{sesh}_task-{exp.name}_ts-{ts}_events.tsv")
 	event_output.save()
 
 	# The experiment ends before the MRI protocol. Inform the participant to keep calm and remain still.
