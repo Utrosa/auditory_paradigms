@@ -56,7 +56,7 @@ print(f"Z(Hit Rate): {z_hit:.3f}")
 print(f"Z(False Alarm Rate): {z_fa:.3f}")
 print(f"d′: {d_prime:.3f}")
 
-#Example output: me 
+#Example output: Sofia
 # Hits: 253
 # Misses: 124
 # Correct Rejections: 7

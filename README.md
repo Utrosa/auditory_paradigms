@@ -4,7 +4,9 @@ We designed several tasks using [Expyriment](https://expyriment.org/), a Python 
 Functional localizer to activate auditory brain areas during MRI scanning. Participants are presented with natural sounds interspersed with silent periods and are asked to determine whether each sound has been repeated or not by pressing a button.
 
 ## Timing Deviance Detection Accuracy (psychophysics)
-This task sequentially presents multiple tone sequences. The timing of at least one of the tones in each sequence is randomly altered and the participants are asked to press a key when they hear this displacement. The displaced tone can occur too early (shorter ISI), too late (longer ISI), or on-time in reference to previously heard timing standards. The timing of the first three tones of the sequence is kept constant (timing standards). The goal is to determine participants' individual accuracy in detecting timing deviants.
+This task sequentially presents multiple tone sequences. The timing of at least one of the tones in each sequence is randomly altered and the participants are asked to press a key when they hear this displacement. The displaced tone can occur too early (shorter ISI), too late (longer ISI), or on-time in reference to previously heard timing standards. The timing of the first three tones of the sequence is kept constant. The goal is to determine participants' individual accuracy in detecting timing deviants.
 
 ## Timing Deviance Detection Performance (fMRI)
-This task is similar to the one above but is desiged for fMRI testing. We're developping an auditory oddball paradigm optimized for neuroimaging experiments. The oddballs will be expressed as timing and/or frequency deviants in tone sequences. We're working on a python code that can be used in other cognitive neuroscience research, ensuring high-degree of precision, customization, and ease of use.
+This task is similar to the one above but is desiged for neuroimaging experiments. The task is a classic auditory oddball paradigm in which the oddballs are deviants in tone timing in regular (isochronous) sequences. The 
+
+All tasks are coded in Python and can be used in other cognitive neuroscience research, ensuring high-degree of precision, customization, and ease of use.

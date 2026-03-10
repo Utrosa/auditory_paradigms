@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-# Time-stamp: <2025-10-10 m.utrosa@bcbl.eu>
+# Time-stamp: <06-02-2025 m.utrosa@bcbl.eu>
 
 # 0. PREPARATION ------------------------------------------------------------------------
 import numpy as np
@@ -31,9 +31,9 @@ params = {
 	"AUDIOFILE_REGEX" : "**/*.wav",
 
 	# Experiment structure
-	"RUNS"     	   			: 6,  # the number of functional MRI sequences
-	"NO_TRIALS"	   			: 5,  # the number of equally long sound and silence pairs
-	"SOUNDS_PER_SEQUENCE"   : 20, # determines the length of trials; each sound is 1 sec
+	"RUNS"     	   			: 3,  # the number of functional MRI sequences
+	"NO_TRIALS"	   			: 10, # the number of equally long sound and silence pairs
+	"SOUNDS_PER_SEQUENCE"   : 30, # determines the length of trials; each sound is 1 sec
 
 	# Visual
 	"CANVAS_SIZE" : (1024, 768), # MRI monitor resolution.
@@ -50,12 +50,12 @@ params = {
 						 "\nPress any button as quickly as you can when you hear a sound repetition.\n"
 						 "\nYou will receive feedback: cyan (correct) and orange (incorrect).\n"
 						 "\nDuring silent periods, just relax and stay still without moving your arms, legs, or head.\n"
-						 "\nWe will repeat this task 6 times. Each run lasts about 4 minutes, with rest breaks in between.\n"
+						 "\nWe will repeat this task 3 times. Each run lasts around 12 minutes, with rest breaks in between.\n"
 						 "\nPress any button to start.",
 	"REST_HEADING" : "BREAK TIME",
 	"REST_TEXT"    : "Please take a moment to rest and realign your body as needed.",
 	"MRI_HEADING"  : "SCANNER CALIBRATION",
-	"MRI_TEXT"     : "Please relax and remain still for a moment.\n\nThis will take a bit less than 2 minutes.\n\nThank you!",
+	"MRI_TEXT"     : "Please remain still for a moment.\n\n Thank you!",
 
 	# Colors in RGB
 	"BLACK"   : (0, 0, 0),	     # screen background
@@ -415,8 +415,14 @@ for run in range(params["RUNS"]): # Runs == Blocks == Functional Acquisitions
 	run_performance = {"H": 0, "M": 0, "CR": 0, "FA": 0}
 	canvas.present()
 
-	# Wait for 4 's' keys from the scanner to synchronize scanner & script onsets.
+	# Wait for onset of functional sequence
+	keyboard.wait(keys=[misc.constants.K_s])
+	canvas.present()
+
+	# Mark the start of the functional sequence
 	run_start_time = exp.clock.time
+
+	# Wait for 4 's' keys from the scanner to synchronize scanner & script onsets.
 	keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s]); 
 	keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
 
@@ -518,4 +524,4 @@ for run in range(params["RUNS"]): # Runs == Blocks == Functional Acquisitions
 		keyboard.wait(keys = [misc.constants.K_g])
 	
 	elif run + 1 == params["RUNS"]:
-		control.end(goodbye_text = "The end.\nThank you for participating! :)")
+		control.end(goodbye_text = "The end. Thank you for participating! :)")

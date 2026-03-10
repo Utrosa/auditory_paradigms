@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-# Time-stamp: <20-10-2025 m.utrosa@bcbl.eu>
+# Time-stamp: <04-02-2026 m.utrosa@bcbl.eu>
 
 # 0. PREPARATION ------------------------------------------------------------------------
 import numpy as np
@@ -13,7 +13,7 @@ sesh = input("Enter the session number with 0 prefixed (e.g.: 01, 02):")
 
 # Get current time for unique ID of output files
 now = datetime.now()
-tis  = int(now.timestamp())
+tis = int(now.timestamp())
 
 # Use current time to seed both random generators
 seed = int(tis * 1000) % 2**32
@@ -21,21 +21,20 @@ random.seed(seed)
 np.random.seed(seed)
 
 # Speficy BIDS-formatted EventFile
-# onset [msec], duration [msec], stim_file [wav], response [HIT/FALSE_ALARM/...]
+# onset [msec], duration [msec], stim_file [wav], response [HIT, ...]
 # key [chr(ASCII)], press_time [msec], RT [msec]
-
 log_format_fStr  = "{0:.3f};{1:.3f};{2};{3};{4};{5:.3f};{6:.3f}\n"
 log_format_NaNs  = "{0:.3f};{1:.3f};{2};{3};{4};{5};{6}\n"
 params = {
 
 	# Local setup: All sounds must be in "Stimuli" folder. Sounds need "s3" prefix.
-	"AUDIO_DIRECTORY" : "/home/mutrosa/Documents/projects/localizer_fMRI/task/",
+	"AUDIO_DIRECTORY" : "/home/mutrosa/Documents/projects/auditory_paradigms/localizer/",
 	"AUDIOFILE_REGEX" : "**/*.wav",
 
 	# Experiment structure
-	"RUNS"     	   			: 7,  # the number of functional MRI sequences
-	"NO_TRIALS"	   			: 5,  # the number of equally long sound and silence pairs
-	"SOUNDS_PER_SEQUENCE"   : 20, # determines the length of trials; each sound is 1 sec
+	"RUNS"     	   			: 4,  # the number of functional MRI sequences
+	"NO_TRIALS"	   			: 10, # the number of equally long sound and silence pairs
+	"SOUNDS_PER_SEQUENCE"   : 30, # determines the length of trials; each sound is 1 sec
 
 	# Visual
 	"CANVAS_SIZE" : (1024, 768), # MRI monitor resolution.
@@ -52,12 +51,12 @@ params = {
 						 "\nPress any button as quickly as you can when you hear a sound repetition.\n"
 						 "\nYou will receive feedback: green (correct) and red (incorrect).\n"
 						 "\nDuring silent periods, just relax and stay still without moving your arms, legs, or head.\n"
-						 "\nWe will repeat this task 7 times. Each run lasts about 4 minutes, with rest breaks in between.\n"
+						 "\nWe will repeat this task a few times and you will have breaks to rest in between.\n"
 						 "\nPress any button to start.",
 	"REST_HEADING" : "BREAK TIME",
 	"REST_TEXT"    : "Please take a moment to rest and realign your body as needed.",
 	"MRI_HEADING"  : "SCANNER CALIBRATION",
-	"MRI_TEXT"     : "Please relax and remain still for a few moments.\n\nThank you!",
+	"MRI_TEXT"     : "Please remain still for a few moments.\n\nThank you!",
 
 	# Colors in RGB
 	"BLACK"   : (0, 0, 0),	     # screen background
@@ -150,27 +149,27 @@ def create_soundtrack(sound_strata, sequence_len, rep_prob, sequence_no):
 
 	return sequences
 
-def compute_durations(pars, clock_start, clock_end, verbose = True):
-	'''
-	Computes the predicted and actual durations of sound or silence parts in trials.
+# def compute_durations(pars, clock_start, clock_end, verbose = True):
+# 	'''
+# 	Computes the predicted and actual durations of sound or silence parts in trials.
 
-	Parameters:
-	- pars: A dictionary, containing all user-defined parameters.
-	- clock_start: Start time given by the Expyriment's clock.
-	- clock_end: Start time given by the Expyriment's clock.
-	- verbose: Prints the computed durations in the terminal when True.
+# 	Parameters:
+# 	- pars: A dictionary, containing all user-defined parameters.
+# 	- clock_start: Start time given by the Expyriment's clock.
+# 	- clock_end: Start time given by the Expyriment's clock.
+# 	- verbose: Prints the computed durations in the terminal when True.
 
-	Returns:
-	- dur_predicted: The predicted trial duration, which is calculated from the user-defined audio parameters.
-	- dur_actual: The actual trial duration, which is calculated from times given by Expyriment's clock.
-	'''
-	dur_predicted = pars['SOUNDS_PER_SEQUENCE'] * pars['SOUND_DURATION']
-	dur_actual 	  = clock_end - clock_start
+# 	Returns:
+# 	- dur_predicted: The predicted trial duration, which is calculated from the user-defined audio parameters.
+# 	- dur_actual: The actual trial duration, which is calculated from times given by Expyriment's clock.
+# 	'''
+# 	dur_predicted = pars['SOUNDS_PER_SEQUENCE'] * pars['SOUND_DURATION']
+# 	dur_actual 	  = clock_end - clock_start
 
-	if verbose:
-		print(f'Predicted duration: {dur_predicted} msec. Actual duration: {dur_actual} msec.')
+# 	if verbose:
+# 		print(f'Predicted duration: {dur_predicted} msec. Actual duration: {dur_actual} msec.')
 
-	return (dur_predicted, dur_actual)
+# 	return (dur_predicted, dur_actual)
 
 def give_feedback(current_sound, position_in_sequence, response, good, bad):
 	'''
@@ -247,6 +246,9 @@ def play_sounds(sequence, sound_duration, exp, canvas, fixation, correct, wrong,
 	# Sound ID refers to the specific sound in the experiment
 	# Sound repetitions have different sound IDs
 	for count, sound_ID in enumerate(sequence):
+
+		# Check if quit key is pressed
+		keyboard.check(keys=[misc.constants.K_y])
 
 		# Refresh the screen when feedback was given
 		if feedback_shown is not None and count - feedback_shown == 2:
@@ -355,8 +357,11 @@ def play_silence(null_sound, sound_duration, exp, null_number, keyboard, respons
 	silence_start = exp.clock.time
 
 	for null_event in range(null_number):
-		
-		# Refresh screen (needed in quit key is pressed)
+
+		# Check if quit key is pressed
+		keyboard.check(keys=[misc.constants.K_y])
+
+		# Refresh screen (needed if quit key is pressed)
 		canvas.present()
 
 		# Stamp audio start time and play
@@ -487,15 +492,22 @@ for run in range(params["RUNS"]): # Runs == Blocks == Functional Acquisitions
 	run_performance = {"H": 0, "M": 0, "CR": 0, "FA": 0}
 	canvas.present()
 
-	# Wait for 4 's' keys from the scanner to synchronize scanner & script onsets.
-	keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s]); 
-	keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
+	# Wait for onset of functional sequence
+	keyboard.wait(keys=[misc.constants.K_s])
+	canvas.present()
 
-	# Mark the start of the run
+	# Mark the start of the functional sequence
 	run_start_time = exp.clock.time
+
+	# Wait for 4 's' keys from the scanner to synchronize scanner & script onsets.
+	keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
+	keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
 
 	# Loop through the trials
 	for trial in range(params["NO_TRIALS"]):
+
+		# Check if quit key is pressed
+		keyboard.check(keys=[misc.constants.K_y])
 
 		if start_with_sound:
 
@@ -523,7 +535,7 @@ for run in range(params["RUNS"]): # Runs == Blocks == Functional Acquisitions
 						 keyboard,
 						 params["DETECTION_SYMBOL"],
 						 event_output)
-			print("SOUND FIRST:"); compute_durations(params, t1, t2, True); compute_durations(params, t3, t4, True)
+			print("SOUND FIRST")
 			
 			# Refresh the screen
 			canvas.present()
@@ -553,7 +565,7 @@ for run in range(params["RUNS"]): # Runs == Blocks == Functional Acquisitions
 						keyboard,
 						params["DETECTION_SYMBOL"],
 						event_output)
-			print("SILENCE FIRST:"); compute_durations(params, t5, t6, True); compute_durations(params, t7, t8, True)
+			print("SILENCE FIRST")
 
 			# Refresh the screen
 			canvas.present()
@@ -574,7 +586,7 @@ for run in range(params["RUNS"]): # Runs == Blocks == Functional Acquisitions
 	
 	# Give encouragement and perfromance update on all runs except the last one.
 	if run + 1 < params["RUNS"]:
-		performance = f'Correct: {run_performance["H"]}, Wrong: {run_performance["FA"]}'
+		performance = f'Correct: {run_performance["H"]}, Wrong: {run_performance["FA"] + run_performance["M"]}'
 		progress    = f'Runs completed: {run+1}/{params["RUNS"]}'
 		rest = stimuli.TextScreen(
 			params["REST_HEADING"], 
