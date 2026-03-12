@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 # Time-stamp: <2024-14-04 m.utrosa@bcbl.eu>
-
+# TO-DO: using the modular code for cleaner & easier usage
 # LIBRARIES and PACKAGES
 from expyriment import design, control, stimuli, io, misc
 import detection_modular as dm
