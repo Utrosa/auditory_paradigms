@@ -3,6 +3,7 @@
 *.ods
 *.todo
 *.txt
+*.png
 
 # Untracked folders
 stimuli/

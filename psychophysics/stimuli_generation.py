@@ -6,6 +6,25 @@
 import numpy as np
 import sounddevice as sd
 
+# Replacement for thorns
+def set_dbspl(sound, dbspl, ref=20e-6):
+    """
+    Normalize waveform to target dB SPL.
+
+    :param sound : np.array, input waveform
+    :param dbspl: float, desired sound level in dB SPL
+    :param max_peak: float, max peak
+    :param ref : float, reference pressure (default 20 µPa)
+    """
+
+    # Apply dB SPL scaling (RMS based)
+    rms = np.sqrt(np.mean(sound**2))
+    target_rms = ref * (10 ** (dbspl / 20))
+    scale = target_rms / rms
+    scaled_sound = sound * scale
+
+    return scaled_sound
+
 class SoundGen:
     def __init__(self, sample_rate, tau):
         """
@@ -16,8 +35,7 @@ class SoundGen:
         self.sample_rate = sample_rate
         self.tau = tau / 1000
 
-    def sound_maker(self, freq, max_amplitude, num_harmonics, tone_duration,
-                    harmonic_factor):
+    def sound_maker(self, freq, max_amplitude, num_harmonics, tone_duration, harmonic_factor, dbspl):
         """
         :param sample_rate: Sample rate in Hz.
         :param freq: Base frequency in Hz.
@@ -25,7 +43,8 @@ class SoundGen:
         :param num_harmonics: Number of harmonic tones.
         :param tone_duration: Duration of each tone in seconds.
         :param harmonic_factor: Harmonic amplitude decay factor for each tone.
-        :return: sound: array of audio samples representing the harmonic complex tone.
+        :param dbspl: Desired dbspl (loudness) level.
+        :return: normalized_sound: array of audio samples representing the harmonic complex tone.
         """
         # Create the time array
         t = np.linspace(0, tone_duration, int(self.sample_rate * tone_duration),
@@ -40,7 +59,10 @@ class SoundGen:
             amplitude = max_amplitude * (harmonic_factor ** (k - 1)) / num_harmonics
             sound += amplitude * harmonic
 
-        return sound
+        # Normalize the sound (without throns due to dependency conflicts)
+        normalized_sound = set_dbspl(sound, dbspl)
+        
+        return normalized_sound
 
     def sine_ramp(self, sound):
         L = int(self.tau * self.sample_rate)
@@ -54,8 +76,7 @@ class SoundGen:
         return sound
 
     #Sequence generation, with one displaced tone 
-    def generate_sequence(self, freq, max_amplitude, num_harmonics, tone_duration, harmonic_factor,
-                          isi, no_tones, delta):
+    def generate_sequence(self, freq, max_amplitude, num_harmonics, tone_duration, harmonic_factor, isi, no_tones, delta, dbspl):
 
         # Convert to sec (input must be in msec)
         isi = isi / 1000
@@ -64,7 +85,7 @@ class SoundGen:
 
         # Generate the tone using the sound_maker method
         sound = self.sound_maker(freq, max_amplitude, num_harmonics, tone_duration,
-                                 harmonic_factor)
+                                 harmonic_factor, dbspl)
 
         # Apply ramping and
         ramped_sound = self.sine_ramp(sound)
@@ -87,106 +108,78 @@ class SoundGen:
             sequence = np.concatenate((sequence, ramped_sound))
 
             # ----------------- Adding ISI --------------------
-            # Add ISI after last tone to prevent abrupt end
-            if tone_idx == no_tones - 2:
-                sequence = np.concatenate((sequence, np.zeros(isi_samples)))
-            
+            # Regular isi
+            current_isi = isi_samples
+
             # Change the ISI before the displaced tone
             if tone_idx == displaced_tone - 2:
                 
                 # Positive delta (delay)
                 if delta > 0:
-                    isi_before = isi_samples + delta_samples
-                    isi_after  = isi_samples - delta_samples
-                    if isi_after <= 0:
-                        raise ValueError(f"Displacement is set too big: delta = {delta} sec. Reduce delta or increase ISI.")
-                    sequence = np.concatenate((sequence, np.zeros(isi_before)))
+                    current_isi = isi_samples + delta_samples
 
                 # Negative delta (advance)
                 elif delta < 0:
-                    isi_before = isi_samples + delta_samples
-                    isi_after  = isi_samples - delta_samples
-                    if isi_before <= 0:
-                        raise ValueError(f"Displacement is set too big: delta = {delta} sec. Reduce delta or increase ISI.")
-                    sequence = np.concatenate((sequence, np.zeros(isi_before)))
-               
-               # Zero delta (on-time)
-                elif delta == 0:
-                    sequence = np.concatenate((sequence, np.zeros(isi_samples)))
+                    current_isi = isi_samples - delta_samples
             
             # Change the ISI after the displaced tone
             elif tone_idx == displaced_tone - 1:
-                sequence = np.concatenate((sequence, np.zeros(isi_after)))
-        
-            # Add ISI after a regular tone
-            else:
-                sequence = np.concatenate((sequence, np.zeros(isi_samples)))
+                
+                # Positive delta (shorten after the delayed tone)
+                if delta > 0:
+                    current_isi = isi_samples - delta_samples
+
+                # Negative delta (prolong after the delayed tone)
+                elif delta < 0:
+                    current_isi = isi_samples + delta_samples
+
+            sequence = np.concatenate((sequence, np.zeros(current_isi)))
 
         return sequence, displaced_tone, total_samples
         
 # Example usage:
-if __name__ == "__main__":
-    sample_rate = 48000  # Sample rate in Hz
-    tau = 5              # Ramping window in msec
-    sound_gen = SoundGen(sample_rate, tau)
+# if __name__ == "__main__":
+#     sample_rate = 48000  # Sample rate in Hz
+#     tau = 5              # Ramping window in msec
+#     sound_gen = SoundGen(sample_rate, tau)
 
 
-    # Parameters for the sound generation
-    freq = 392             # Frequency in Hz
-    num_harmonics = 5      # Number of harmonics
-    tone_duration = 50     # Duration of each tone in msec
-    harmonic_factor = 0.7  # Harmonic amplitude decay factor
-    no_tones = 7           # Number of tones in the sequence
+#     # Parameters for the sound generation
+#     freq = 392             # Frequency in Hz
+#     num_harmonics = 5      # Number of harmonics
+#     tone_duration = 50     # Duration of each tone in msec
+#     harmonic_factor = 0.7  # Harmonic amplitude decay factor
+#     no_tones = 7           # Number of tones in the sequence
 
-    # Max safe amplitude calculated via a simulation
-    A_max = 1.1
-    target_rms = 0.4
+#     # Max safe amplitude calculated via a simulation
+#     A_max = 1.1
+#     target_rms = 0.4
 
-    # Inter-stimulus interval in msec
-    isi_list = list(np.arange(400, 800, 100))
-    current_isi = np.random.choice(isi_list)
+#     # Inter-stimulus interval in msec
+#     isi_list = list(np.arange(400, 800, 100))
+#     current_isi = np.random.choice(isi_list)
 
-    # Deviations in msec
-    deltas = list(np.arange(-300, 301, 10))
-    extra = [5, 15]
-    deltas.extend(extra)
-    current_delta = np.random.choice(deltas)
+#     # Deviations in msec
+#     deltas = list(np.arange(-300, 301, 10))
+#     extra = [5, 15]
+#     deltas.extend(extra)
+#     current_delta = np.random.choice(deltas)
 
-    # Generate the sequence
-    sequence, displaced_tone, duration = sound_gen.generate_sequence(
-                                                   freq,
-                                                   A_max,
-                                                   num_harmonics, 
-                                                   tone_duration, 
-                                                   harmonic_factor,
-                                                   current_isi,
-                                                   no_tones,
-                                                   current_delta
-                                                   )
-    sd.play(sequence, samplerate = sample_rate)
-    sd.wait()                                  
+#     # Generate the sequence
+#     sequence, displaced_tone, duration = sound_gen.generate_sequence(
+#                                                    freq,
+#                                                    A_max,
+#                                                    num_harmonics, 
+#                                                    tone_duration, 
+#                                                    harmonic_factor,
+#                                                    current_isi,
+#                                                    no_tones,
+#                                                    current_delta
+#                                                    )
+#     sd.play(sequence, samplerate = sample_rate)
+#     sd.wait()                                  
 
-    # Status
-    print("DELTA:",          current_delta, 
-          "ISI:",            current_isi,
-          "TONE_DISPLACED:", displaced_tone)
-    
-    # Check available hardware
-    print("DEFAULT", sd.default.device)
-    print(sd.query_devices())
-
-    # TRY with bluethooth off
-    # sd.default.device = (None, 0) # No errors and with sound.
-                                    # 0 HD-Audio Generic: ALC257 Analog (hw:1,0), ALSA (2 in, 2 out)
-    # sd.default.device = (None, 1) # Invalid number of channels [PaErrorCode -9998]
-                                    # 1 acp63: - (hw:2,0), ALSA (2 in, 0 out)
-    # sd.default.device = (None, 2) # No errors but no sound.
-                                    # 2 hdmi, ALSA (0 in, 8 out)
-
-    # TRY with bluetho2 hdmi, ALSA (0 in, 8 out)oth on
-    # sd.default.device = (None, 0) # No errors and with sound.
-                                    # 0 HD-Audio Generic: ALC257 Analog (hw:1,0), ALSA (2 in, 2 out)
-    # sd.default.device = (None, 1) # Invalid number of channels [PaErrorCode -9998]
-                                    # 1 acp63: - (hw:2,0), ALSA (2 in, 0 out)
-    # sd.default.device = (None, 2) # No errors but no sound.
-                                    # 2 hdmi, ALSA (0 in, 8 out)
+#     # Status
+#     print("DELTA:",          current_delta, 
+#           "ISI:",            current_isi,
+#           "TONE_DISPLACED:", displaced_tone)

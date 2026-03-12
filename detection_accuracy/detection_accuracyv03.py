@@ -236,7 +236,12 @@ for TRIAL_PARAMS in RUN_COMBOS:
 
 		# Play sequence
 		for count in range(no_tones):
-			
+
+			# Enable ESCAPE
+			if keyboard.check(keys=[misc.constants.K_ESCAPE]):
+				break
+
+			# Tone
 			tone.present()
 			current_isi = isi
 
@@ -254,6 +259,7 @@ for TRIAL_PARAMS in RUN_COMBOS:
 				elif count == dev_loc:
 					current_isi = isi + dev
 
+			# ISI
 			exp.clock.wait(current_isi)
 		
 		# Save data

@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-# Time-stamp: <21-10-2025>
+# Time-stamp: <10-03-2026>
 # Sofia Taglini's final version 24-07-2025
 # Modifed by Monika Utrosa Skerjanec
 # Testing detection accuracy for deviant tones 
@@ -55,6 +55,7 @@ params = {
 	"TONE_DURATION"   : 50,     # Duration of each tone in msec
     "TONE_FREQUENCY"  : 392,    # Equivalent to musical tone A
     "MAX_AMPLITUDE"   : 1.1,    # Calculated through simluation (see: audioDist_sim.py)
+    "DBSPL"           : 70,
     "NO_TONES"        : 7,      # Informed by iterative singing preferences: 10.1016/j.cub.2023.02.070
 
     # Text (for instructions and goodbye message)
@@ -170,9 +171,15 @@ for block, current_isi in enumerate(isi_list):
                                           params["HARMONIC_FACTOR"],
                                           current_isi, 
                                           params["NO_TONES"], 
-                                          current_delta
+                                          current_delta,
+                                          params["DBSPL"]
                                           )
         
+        # Debugging clipping
+        print(f"Min: {np.min(sequence)}, Max: {np.max(sequence)}")
+        if np.max(np.abs(sequence)) > 1.0:
+            print("WARNING: Signal is clipping!")
+
         # Clearing any key presses before playing the sound 
         keyboard.clear()
         

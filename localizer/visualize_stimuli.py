@@ -7,18 +7,29 @@ import librosa.display
 import matplotlib.pyplot as plt
 
 # 01. Get audio ---------------------------------------------------------------
-AUDIO_FOLDER = "/home/mutrosa/Documents/projects/auditory_paradigms/localizer/stimuli"
+# AUDIO_FOLDER = "/home/mutrosa/Documents/projects/auditory_paradigms/localizer/stimuli"
+
+# Expyriment tone stimuli & nulll stimuli (isi & iti)
+AUDIO_FOLDER = "/home/mutrosa/Documents/projects/auditory_paradigms/detection_accuracy/stimuli"
+
+# SoundGen stimuli (sequences)
+# AUDIO_FOLDER = "/home/mutrosa/Documents/projects/auditory_paradigms/psychophysics/stimuli"
+
+# Load
 audio_files = [
     f for f in os.listdir(AUDIO_FOLDER)
     if f.lower().endswith((".wav"))
 ]
 
 # Random selection
-num_samples    = min(30, len(audio_files))
+# num_samples    = min(30, len(audio_files))
+num_samples = 10
+cols = 2
+rows = 5
 selected_files = random.sample(audio_files, num_samples)
 
 # 02. Spectrograms per sound --------------------------------------------------
-fig, axes = plt.subplots(5, 6, figsize=(18, 12), constrained_layout=True)
+fig, axes = plt.subplots(rows, cols, figsize=(18, 12), constrained_layout=True)
 axes = axes.flatten()
 
 shortnames = []
@@ -28,11 +39,12 @@ sr = None
 
 for i, file_name in enumerate(selected_files):
 
-    # Extract a short name of the sound
+    # Extract a short name of the sound (for localizer sounds)
     # Removing all characters after "_ramp" and strip "s3_" from the start
-    loc = file_name.find("_ramp")
-    short_name = file_name[3:loc]
-    shortnames.append(short_name)
+    # loc = file_name.find("_ramp")
+    # short_name = file_name[3:loc]
+    # shortnames.append(short_name)
+    short_name = file_name
     
     # Load sounds
     file_path = os.path.join(AUDIO_FOLDER, file_name)
@@ -55,7 +67,7 @@ for i, file_name in enumerate(selected_files):
         ax=axes[i]
     )
 
-    axes[i].set_title(short_name, fontsize=10)
+    axes[i].set_title(short_name, fontsize=8)
     axes[i].label_outer()
 
 # Add a shared colorbar
