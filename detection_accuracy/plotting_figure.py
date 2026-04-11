@@ -174,7 +174,7 @@ def plot_count(df, title, x_names, x_label, y_name, y_order, y_label, y_group=No
 # 03. CREATE FIGURES -----------------------------------------------------------------------------
 dataDir  = Path('/home/mutrosa/Documents/projects/auditory_paradigms/detection_accuracy/trials')
 
-for idx in range(1, 30):
+for idx in range(94, 100):
     i = idx + 1
 
     # Load the csv with trials
@@ -318,35 +318,35 @@ for idx in range(1, 30):
     # Negative vs Positive
     params = ['base_freq', 'freq_diff', 'freq_dev', 'freq_loc', 'dev', 'dev_loc']
     order = sorted(df_events['freq_dev_no'].unique())
-    plot_count(
-        df=df_events,
-        title=f"FREQUENCY DEVIANTS COUNT PER TRIAL | SES-{i:003d}",
-        x_names=params,
-        x_label="Frequency Deviants Count",
-        y_name='freq_dev_no',
-        y_order=order,
-        y_label="Count",
-        save_as=f"plots/ses-{i:003d}_freqDevNo-dir.png",
-        show=False,
-        max_cols=7,
-        rect=(0.02, 0, 0.93, 0.98) # left, bottom, right, top
-    )
+    # plot_count(
+    #     df=df_events,
+    #     title=f"FREQUENCY DEVIANTS COUNT PER TRIAL | SES-{i:003d}",
+    #     x_names=params,
+    #     x_label="Frequency Deviants Count",
+    #     y_name='freq_dev_no',
+    #     y_order=order,
+    #     y_label="Count",
+    #     save_as=f"plots/ses-{i:003d}_freqDevNo-dir.png",
+    #     show=False,
+    #     max_cols=7,
+    #     rect=(0.02, 0, 0.93, 0.98) # left, bottom, right, top
+    # )
 
     # Absolute
     params = ['base_freq', 'freq_diff_abs', 'freq_dev', 'freq_loc', 'dev_abs', 'dev_loc']
-    plot_count(
-        df=df_events,
-        title=f"FREQUENCY DEVIANTS COUNT PER TRIAL | SES-{i:003d}",
-        x_names=params,
-        x_label="Frequency Deviants Count",
-        y_name='freq_dev_no',
-        y_order=order,
-        y_label="Count",
-        save_as=f"plots/ses-{i:003d}_freqDevNo-abs.png",
-        show=False,
-        max_cols=7,
-        rect=(0.02, 0, 0.93, 0.98) # left, bottom, right, top
-    )
+    # plot_count(
+    #     df=df_events,
+    #     title=f"FREQUENCY DEVIANTS COUNT PER TRIAL | SES-{i:003d}",
+    #     x_names=params,
+    #     x_label="Frequency Deviants Count",
+    #     y_name='freq_dev_no',
+    #     y_order=order,
+    #     y_label="Count",
+    #     save_as=f"plots/ses-{i:003d}_freqDevNo-abs.png",
+    #     show=False,
+    #     max_cols=7,
+    #     rect=(0.02, 0, 0.93, 0.98) # left, bottom, right, top
+    # )
 
     # ---------------------------------------------------------------------------------------------
     # FREQUENCY DEVIANTS POSITION
@@ -354,14 +354,14 @@ for idx in range(1, 30):
     # Use exploded dataframe (plot is on event-level, not trial-level)
 
     # Negative vs Positive
-    params = ['base_freq', 'freq_diff', 'freq_dev', 'freq_dev_no', 'dev', 'dev_loc']
-    order = sorted(df_events['freq_loc'].unique())
+    params = ['base_freq', 'freq_diff', 'freq_dev', 'freq_dev_no']
+    order = sorted(df_events['dev'].unique())
     plot_count(
         df=df_events,
         title=f"FREQUENCY DEVIANTS LOCATION | SES-{i:003d}",
         x_names=params,
         x_label="Frequency Deviants Location [tone idx]",
-        y_name='freq_loc',
+        y_name='dev',
         y_order=order,
         y_label="Count",
         save_as=f"plots/ses-{i:003d}_freqDevLoc-dir.png",
@@ -371,13 +371,13 @@ for idx in range(1, 30):
     )
 
     # Absolute
-    params = ['base_freq', 'freq_diff_abs', 'freq_dev', 'freq_dev_no', 'dev_abs', 'dev_loc']
+    params = ['base_freq', 'freq_diff_abs', 'freq_dev', 'freq_dev_no']
     plot_count(
         df=df_events,
         title=f"FREQUENCY DEVIANTS LOCATION | SES-{i:003d}",
         x_names=params,
         x_label="Frequency Deviants Location [tone idx]",
-        y_name='freq_loc',
+        y_name='dev',
         y_order=order,
         y_label="Count",
         save_as=f"plots/ses-{i:003d}_freqDevLoc-abs.png",

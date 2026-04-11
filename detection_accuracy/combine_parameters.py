@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-# Time-stamp: <2026-03-28 m.utrosa@bcbl.eu>
+# Time-stamp: <2026-04-02 m.utrosa@bcbl.eu>
 # TODO: replace frequency dev in params with naturalistic range (musical notes or soundscape freq.)
 
 """
@@ -139,146 +139,179 @@ def create_experimental_sessions(params, sesID, save_csv=False, MAX_BLOCK_DURATI
 	DEV_arr = np.concatenate([DEV_pos, DEV_neg])
 	DEV     = np.sort(DEV_arr).tolist()
 
-	# Determine the "type" of timing deviations (direction)
+	# Define possible "types" of timing deviations.
 	if 0 in DEV:
 		DEV_TYPE = ['on_time', 'early', 'late']
 	else:
 		DEV_TYPE = ['early', 'late']
 
-	# Set the positions of the timing deviation in the tone sequences.
+	# Create a list of locations (tone indices) of the timing deviations in the tone sequences.
 	DEV_LOC = list(range(params["FIRST_DEV_LOC"], params["LAST_DEV_LOC"] + 1))
 
 	# 02. GENERATE COUNTERBALANCED TRIALS ---------------------------------------------------------
 	# Generate a list of dictionaries with all possible combinations of the independent variables.
-	# This will counterbalance the variables for their type (direction) and location.
-	TARGET_COMBOS = [{"dev" : d, "dev_type" : dt, "dev_loc" : dl} for d, dt, dl in product(DEV, DEV_TYPE, DEV_LOC)]
+	# This will counterbalance the timing deviations for their type and location.
+	TARGET_COMBOS = [
+	{"dev" : d, "dev_type" : dt, "dev_loc" : dl} for d, dt, dl in product(DEV, DEV_TYPE, DEV_LOC)
+	]
 
-	# Remove invalid trial combinations
+	# Remove invalid trial combinations.
 	VALID_TARGET_COMBOS = []
 	for combo in TARGET_COMBOS:
 
-		# If DEV == 0, then DEV_TYPE must be "on_time"
+		# If DEV == 0, then DEV_TYPE must be "on_time".
 		if combo["dev"] == 0:
 			if combo["dev_type"] != "on_time":
 				continue
 
-		# If DEV != 0, then DEV_TYPE cannot be "on_time"
+		# If DEV != 0, then DEV_TYPE cannot be "on_time".
 		if combo["dev"] != 0:
 			if combo["dev_type"] == "on_time":
 				continue
 
-		# If DEV > 0, then type cannot be "early"
+		# If DEV > 0, then type cannot be "early".
 		if combo["dev"] > 0:
 			if combo["dev_type"] == "early":
 				continue
 
-		# If DEV < 0, then type cannot be "late"
+		# If DEV < 0, then type cannot be "late".
 		if combo["dev"] < 0:
 			if combo["dev_type"] == "late":
 				continue
 
-		# If all checks pass, add dict to list
+		# If all checks pass, appen the trial combo (dict).
 		VALID_TARGET_COMBOS.append(combo)
 
 	# Repeat the counterbalanced trials params["DEV_REP"]-times.
-	# Multiple repetitions of dependent variable increase power.
 	VALID_TARGET_COMBOS_REPS = VALID_TARGET_COMBOS * params["DEV_REP"]
-
-	# Print update on the number of trials created.
-	NO_TRIALS = len(VALID_TARGET_COMBOS_REPS)
-	print(
-		f"\nThere is a total of {NO_TRIALS} signal trials."
-		f" These trials contain {params['DEV_REP']} repetitions of each timing deviation"
-		f" for each possible position of the deviation {DEV_LOC}."
-		f" There are {len(DEV)} unique timing deviation values (including zero, if applicable)."
-		f"\n\nAn MRI experiment would have {int((NO_TRIALS * (1 / 3))/(2/3) + NO_TRIALS)} trials in total. "
-		f"One third (n = {int((NO_TRIALS * (1 / 3))/(2/3))}) silent (no signal) trials and "
-		f"two thirds (n = {len(VALID_TARGET_COMBOS_REPS)}) sound (signal) trials."
+	
+	# Calculate required number of silent trials (1/3 of all trials).
+	NO_SOUND_TRIALS  = len(VALID_TARGET_COMBOS_REPS)
+	NO_SILENT_TRIALS = int((NO_SOUND_TRIALS * (1 / 3))/(2/3))
+	NO_TRIALS_ALL    = NO_SOUND_TRIALS + NO_SILENT_TRIALS
+	
+	# Print updates on the trial count.
+	if 0 in DEV:
+		print(
+			f"\nThere is a total of {NO_SOUND_TRIALS} signal trials."
+			f" These trials contain {params['DEV_REP']} repetitions of each timing deviation"
+			f" for each possible position of the deviation {DEV_LOC}."
+			f" There are {len(DEV)} unique timing deviation values (including zero)."
+			f"\n\nAn MRI experiment would have {NO_TRIALS_ALL} trials in total. "
+			f"One third (n = {NO_SILENT_TRIALS}) silent (no signal) trials and "
+			f"two thirds (n = {NO_SOUND_TRIALS}) sound (signal) trials."
+		)
+	else:
+		print(
+			f"\nThere is a total of {NO_SOUND_TRIALS} signal trials."
+			f" These trials contain {params['DEV_REP']} repetitions of each timing deviation"
+			f" for each possible position of the deviation {DEV_LOC}."
+			f" There are {len(DEV)} unique timing deviation values (excluding zero)."
+			f"\n\nAn MRI experiment would have {NO_TRIALS_ALL} trials in total. "
+			f"One third (n = {NO_SILENT_TRIALS}) silent (no signal) trials and "
+			f"two thirds (n = {NO_SOUND_TRIALS}) sound (signal) trials."
 		)
 
-	# Shuffle the trials to prevent order effects and predictability.
-	random.shuffle(VALID_TARGET_COMBOS_REPS)
-
-	# 03. ADD CONTROL VARIABLES -------------------------------------------------------------------
-	# We're not interested in the effect of these variables on encoding of timing deviancy, so we
-	# either fix (keep constant) or randomly define them. This keeps our dependent variable either
-	# affected systematically or unaffected.
+	# 03. ADD ALL OTHER VARIABLES -----------------------------------------------------------------
+	# We're not interested in the effect of these variables, so we either keep them constant or 
+	# randomly vary them on trial-level. This keeps our dependent variable either affected
+	# systematically or unaffected.
 	
-	### -------- Parameters that are constant across trials -------- 
+	# First, check that the frequency deviancy parameters were set correctly!
+	# Rule: frequency deviants cannot occur on the same (n) or the following (n+1) tone on which
+	# the timing deviant occurs.
+	# This means there must be enough locations (tone indices) for frequency deviants given
+	# the desired number of frequency deviants and the length of tone sequence (total tones).
+	if params["FREQ_REP_MAX"] > params["LAST_FREQ_LOC"] - params["FIRST_FREQ_LOC"] - 1:
+		raise ValueError(
+				f'Frequency deviants cannot occur {params["FREQ_REP_MAX"]}-times per trial '
+				f'because there are only '
+				f'{params["LAST_FREQ_LOC"] - params["FIRST_FREQ_LOC"] - 1} '
+				'positions allowed.\n Adjust input parameters.'
+		)
+	
+	### ----------------------- Parameters that are constant across trials ------------------------
 	# Depending on how input parameters are set, these can:
-	# 		- be fixed for each experimental session, or
-	#		- can vary randomly across sessions. 
-	# In both cases, these parameters are fixed for all trials in one exp. session.
+	# 	- be fixed for each experimental session, or
+	#	- can vary randomly across experimental sessions. 
+	# In both cases, these parameters are fixed for all trials in one experimental session.
+	# To make these parameters vary on trial-level, replace "k" with the TOTAL trial number.
+	
+	# Sample without replacement: every value is unique.
 	ISI = random.sample(
 		range(params["ISI_MIN"], params["ISI_MAX"] + 1),
-		1
+		k=1
 		)
 	NO_TONES = random.sample(
 		range(params["MIN_TONES"], params["MAX_TONES"] + 1),
-		1
+		k=1
 		)
 
-	### -------- Parameters that vary across trials -------- 
-	ITI = random.choices(
-		population=range(params["ITI_MIN"], params["ITI_MAX"] + 1),
-		k=(NO_TRIALS - params["NO_BLOCKS"])
+	### --------------------------- Parameters that vary across trials ----------------------------
+	ITI = random.sample(
+		range(params["ITI_MIN"], params["ITI_MAX"] + 1),
+		k=(NO_TRIALS_ALL - params["NO_BLOCKS"])
 		)
-
-	# To ensure trial separability, ITI must be longer than 2 x (max(ISI) + tone duration)
+	
+	# Checks to ensure trial separability (perceptual)
+	## The smallest ITI must be longer than 2 x (max(ISI) + tone duration).
 	if min(ITI) <= 2 * (max(ISI) + params["TONE_DURATION"]):
 		raise ValueError(
-				f'Min ITI ({min(ITI)} ms) could be too short given the '
-				f'max ISI ({max(ISI)} ms) & tone duration ({params["TONE_DURATION"]} ms).'
+				f'Min ITI ({min(ITI)} ms) is too short given the '
+				f'max ISI ({max(ISI)} ms) and '
+				f'tone duration ({params["TONE_DURATION"]} ms).'
 		)
 
-	# To ensure trial separability, ITI must be longer than the longest DEV
-	if min(ITI) <= max(DEV):
+	## THe smallest ITI must be longer than the longest DEV.
+	if min(ITI) <= max(DEV_pos):
 		raise ValueError(
-				f'Min ITI ({min(ITI)} ms) could be too short given the '
-				f'max DEV ({max(DEV)} ms).'
+				f'Min ITI ({min(ITI)} ms) is too short given the '
+				f'max DEV ({max(DEV_pos)} ms).'
 		)
 
-	### -------- Add control variables --------
-	# Loop through each of the counterbalanced trials
-	# Add NO_TONES, ISI, BASE_FREQ, FREQS, FREQ_LOC
+	# Loop through each counterbalanced trial and add all other variables.
 	COMBOS_ALL_DEV = []
 	for count, trial in enumerate(VALID_TARGET_COMBOS_REPS):
 
-		# Add absolute values of timing deviants
-		trial["dev_abs"] = abs(trial["dev"])
-		
-		# Add randomly fixed parameters to the trial dict
+		# Add the absolute value of the timing deviant, ISI, and no. of tones.
+		trial["dev_abs"]  = abs(trial["dev"])
+		trial["isi"]      = ISI[0]
 		trial["no_tones"] = NO_TONES[0]
-		trial["isi"] = ISI[0]
 		
-		# Copy all possible frequency values
+		# Create a copy of all possible frequency values.
 		FREQ = params["FREQS"].copy()
 
-		# Randomly select the frequency standard
+		# Randomly select one frequency standard and add to trial.
 		BASE_FREQUENCY = random.sample(FREQ, 1)
 		trial["base_freq"] = BASE_FREQUENCY[0]
 
-		# Remove the standard as a possible frequency deviation
+		# Remove the standard as a possible frequency deviation.
 		FREQ.remove(BASE_FREQUENCY[0])
 
-		# Generate a list of all possible FREQ_DEV locations in the tone sequence
+		# Generate a list of all possible frequency deviation locations in the tone sequence.
 		FREQ_LOC_ALL = list(range(params["FIRST_FREQ_LOC"], params["LAST_FREQ_LOC"] + 1))
 		
 		# Ensure that the dev_loc and freq_loc are not the same.
-		# Freq_dev should never occur on the same tone as the tim_dev
 		FREQ_LOC_ALL.remove(trial["dev_loc"])
 
-		# Randomly determine the number of frequency deviants for the current trial
+		# Ensure freq_loc is not on dev_loc + 1 tone, which is displaced due to relative timing.
+		# e.g.: for early tones, the 'create_soundtrack_soundgen.py' shortens the ISI before 
+		# the displaced tone and lengthens the ISI after that tone.
+		FREQ_LOC_ALL.remove(trial["dev_loc"] + 1)
+
+		# Randomly determine the number of frequency deviants for the current trial.
 		FREQ_REP = random.sample(
 			list(range(params["FREQ_REP_MAX"] + 1)),
 			1
 			)
 		
-		# Allow random sampling with replacement for deviants
-		# This means that freq deviants are not fixed
-		FREQ_DEVS = random.choices(FREQ, k=FREQ_REP[0])
+		# Allow random sampling with replacement for deviants.
+		FREQ_DEVS = random.choices(
+			FREQ,
+			k=FREQ_REP[0]
+			)
 
-		# Determine the type of sampled deviants (> or < than base freq)
+		# Determine the "type" of sampled frequency deviants (> or < than base freq).
 		FREQ_DEV_TYPE = []
 		for fdt in FREQ_DEVS:
 			if fdt < BASE_FREQUENCY[0]:
@@ -286,37 +319,124 @@ def create_experimental_sessions(params, sesID, save_csv=False, MAX_BLOCK_DURATI
 			else:
 				FREQ_DEV_TYPE.append("higher")
 		
-		# Randomly choose the location of the FREQ_DEVS
-		# Without replacement
+		# Randomly choose the location of the FREQ_DEVS (without replacement).
 		FREQ_LOC = random.sample(FREQ_LOC_ALL, FREQ_REP[0])
 
-		# Add lists to the trial dict.
-		# If no FREQ_DEVS occur in the current trial, the lists are empty.
+		# Add to current trial.
+		# If there are no FREQ_DEVS in the current trial (FREQ_REP == 0),
+		# add "False" lists.
 		if bool(FREQ_DEVS) == True:
-			trial["freq_dev"] = FREQ_DEVS
+			trial["freq_dev"]      = FREQ_DEVS
 			trial["freq_dev_type"] = FREQ_DEV_TYPE
-			trial["freq_loc"] = FREQ_LOC
-			trial["freq_dev_no"] = len(FREQ_DEVS)
+			trial["freq_loc"]      = FREQ_LOC
+			trial["freq_dev_no"]   = len(FREQ_DEVS)
 		else:
-			trial["freq_dev"] = [False]
+			trial["freq_dev"]      = [False]
 			trial["freq_dev_type"] = ["standard"]
-			trial["freq_loc"] = [False]
-			trial["freq_dev_no"] = len(FREQ_DEVS)
+			trial["freq_loc"]      = [False]
+			trial["freq_dev_no"]   = len(FREQ_DEVS)
 		
-		# Append the final structure
+		# Append the final structure.
 		COMBOS_ALL_DEV.append(trial)
 
-	# 04. SPLIT INTO BLOCKS ----------------------------------------------------------------------
-	# It's possible that the number of trials is not divisible by desired number of blocks.
-	block_base = NO_TRIALS // params["NO_BLOCKS"]
+	# 04. CREATE SILENT TRIALS and SPLIT INTO BLOCKS ----------------------------------------------
+	# Calculate the number of silent trials needed per block.
+	silent_base   = NO_SILENT_TRIALS // params["NO_BLOCKS"]
+	silent_rest   = silent_base % params["NO_BLOCKS"]
+	silent_trials = [silent_base + 1] * silent_rest + [silent_base] * (params["NO_BLOCKS"] - silent_rest)
+	
+	# Print update on how silent trials are split into blocks.
+	print(
+	f"\nThere will be {silent_base} silent trials per block inserted in the experiment. "
+	f"\n{[f'Block {idx + 1}: {slt}' for idx, slt in enumerate(silent_trials)]}."
+	)
+	
+	# Calculate the number of sound trials needed per block.
+	sound_base   = NO_SOUND_TRIALS // params["NO_BLOCKS"]
+	sound_rest   = sound_base % params["NO_BLOCKS"]
+	sound_trials = [sound_base + 1] * sound_rest + [sound_base] * (params["NO_BLOCKS"] - sound_rest)
+	
+	# Print update on how sound trials are split into blocks.
+	print(
+	f"\nThere will be {sound_base} sound trials per block inserted in the experiment. "
+	f"\n{[f'Block {idx + 1}: {sdt}' for idx, sdt in enumerate(sound_trials)]}."
+	)
 
-	# Get number of blocks that need one extra item
-	remainder = NO_TRIALS % params["NO_BLOCKS"]
-	blocks = [block_base + 1] * remainder + [block_base] * (params["NO_BLOCKS"] - remainder)
-	# TODO: write update about the number of trials per block and a warning if the number of trials
-	# is not the same across blocks!!
+	# Calculate the number of total trials needed per block.
+	block_base = NO_TRIALS_ALL // params["NO_BLOCKS"]
+	remainder  = NO_TRIALS_ALL % params["NO_BLOCKS"]
+	blocks     = [block_base + 1] * remainder + [block_base] * (params["NO_BLOCKS"] - remainder)
+	
+	# Print update on the how all trials are split into blocks.
+	print(
+	f"\n\nThere will be a total of {block_base} trials per block in the experiment. "
+	f"\n{[f'Block {idx + 1}: {b}' for idx, b in enumerate(blocks)]}."
+	)
 
-	# Create a list of all trials for a single experimental session and calculate their durations.
+	# Create one empty/silent trial: null sound with imperceptible frequency.
+	empty_trial = {
+		'dev': None,
+		'dev_type': None,
+		'dev_loc': None,
+		'dev_abs': None,
+		'no_tones': NO_TONES[0],
+		'isi': ISI[0],
+		'base_freq': 40000,
+		'freq_dev': None,
+		'freq_dev_type': None,
+		'freq_loc': None,
+		'freq_dev_no': None
+	}
+
+	# Insert "silent_base" silent trials after every block of "sound_base" sound trials.
+	block_start_idx = 0
+	for no_b, no_slt, no_sdt in zip(blocks, silent_trials, sound_trials):
+		
+		# Create a list of empty trials of len(number of silent trials).
+		empty_trials = [empty_trial for i in range(no_slt)]
+
+		# Add empty trials after the last sound trial.
+		sound_block_end_idx = block_start_idx + no_sdt
+		COMBOS_ALL_DEV[sound_block_end_idx:sound_block_end_idx] = empty_trials
+
+		# Print update
+		print(f"{len(empty_trials)} empty trials inserted at idx. {sound_block_end_idx}")
+		
+		# Update block indices
+		block_start_idx = sound_block_end_idx + no_slt
+
+	# Shuffle signal and no-signal trials in each block.
+	## Rule 1: Empty trial should never occur as the first trial of the block.
+	## Rule 2: There should never be two or more empty trials in a row.
+	b_start_idx = 0
+	for b_idx in blocks:
+		b_end_idx = b_start_idx + b_idx
+		block_trials = COMBOS_ALL_DEV[b_start_idx:b_end_idx]
+		b_start_idx = b_end_idx
+
+		# Shuffle until the rules are satisfied
+		resample = True
+		while resample:
+
+			# Shuffle the entire block randomly
+			random.shuffle(block_trials)
+
+			# Rule 1: The "dev" of the first trial must not be None.
+			is_first_empty = (block_trials[0].get('dev') is None)
+			
+			# Rule 2: No two consecutive trials can have "dev" as None.
+			has_consecutive_empty = any(
+				(block_trials[bt].get('dev') is None) and (block_trials[bt-1].get('dev') is None)
+				for bt in range(1, len(block_trials))
+			)
+
+			# If either rule is violated, resample (shuffle again).
+			resample = is_first_empty or has_consecutive_empty
+
+		# Assign the valid shuffled trials back to the original list
+		COMBOS_ALL_DEV[b_start_idx - b_idx : b_end_idx] = block_trials
+		
+	# Split trials into blocks
 	BLOCK_COMBOS = []
 	for block_no, block in enumerate(blocks):
 		for trial_no in range(block):
@@ -335,7 +455,7 @@ def create_experimental_sessions(params, sesID, save_csv=False, MAX_BLOCK_DURATI
 			
 			BLOCK_COMBOS.append(cad)
 
-	# 05. CALCULATE DURATIONS ---------------------------------------------------------------------
+	# 06. CALCULATE DURATIONS ---------------------------------------------------------------------
 	# Get duration of trials
 	trial_durs = []
 	for b in BLOCK_COMBOS:
@@ -366,7 +486,7 @@ def create_experimental_sessions(params, sesID, save_csv=False, MAX_BLOCK_DURATI
 		warnings.warn(warning_msg)
 	else:
 		print(
-		f"\nExperiment duration: {exp_dur_min:.2f} min."
+		f"\nExperiment duration: {exp_dur_min:.2f} min of signal trials."
 		f"\nAverage block duration: {block_dur_min:.2f} min."
 		f"\nAverage trial duration: {int(trial_dur_avg)} msec."
 		)
@@ -379,7 +499,7 @@ def create_experimental_sessions(params, sesID, save_csv=False, MAX_BLOCK_DURATI
 			f"\n{invalid_trials}."
 			)
 	
-	# 06. SAVE TRIALS -----------------------------------------------------------------------------
+	# 07. SAVE TRIALS -----------------------------------------------------------------------------
 	# Create a dataframe from the list of dictionaries
 	df = pd.DataFrame(BLOCK_COMBOS)
 
@@ -425,8 +545,8 @@ if __name__ == "__main__":
 
 	# a. Overall structure of the experimental session
 	"NO_BLOCKS" : 4, 	   # Number of blocks, equal to the number of funcional scans in the MRI protocol
-	"ITI_MIN"   : 1550,    # Must be noticeably larger than max(ISI) + tone_duration
-	"ITI_MAX"   : 1950,    # Smaller than inter-block-interval (max rest time = 2 min)
+	"ITI_MIN"   : 2000,    # Must be noticeably larger than max(ISI) + tone_duration
+	"ITI_MAX"   : 2500,    # Smaller than inter-block-interval (max rest time = 2 min)
 	
 	# b. Tone sequence
 	"TONE_DURATION" : 50,   # Duration of a single tone in msec
@@ -450,17 +570,17 @@ if __name__ == "__main__":
 	"LAST_DEV_LOC"  : 6,  # The last tone to be displaced timing-wise
 
 	# c. Frequency deviants
-	"FREQS" : [440, 185, 392, 880, 98],	 # Absolute frequency deviants in Hz
+	"FREQS" : [440, 185, 392, 880, 98],	 # Absolute frequency deviants in Hz ## TODO: within 300Hz
 	"FREQ_REP_MAX" : 3, # How many times max can frequency deviations occur per trial?
 						# If 3, it means there could be 0, 1, 2, or 3 deviants in one trial
 						# That's good, because we have 4 buttons in the MRI
 
 	"FIRST_FREQ_LOC" : 2,  # The first tone that can be displaced frequency-wise
-						   # e.g.: if you want the first few tones to be frequency standards
+						   # Easier to count if the first 3 tones are frequency standards
 
 	"LAST_FREQ_LOC"  : 7,  # The last tone to be displaced frequency-wise
 	}
 
-	for session in range(1000):
+	for session in range(1):
 		session = session + 1
-		create_experimental_sessions(params, session, save_csv=True)
+		create_experimental_sessions(params, session, save_csv=False)

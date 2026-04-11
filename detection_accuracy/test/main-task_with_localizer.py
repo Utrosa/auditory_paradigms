@@ -1,0 +1,797 @@
+#! /usr/bin/env python
+# Time-stamp: <31-03-2026, m.utrosa@bcbl.eu>
+'''
+Main experimental script
+- runs localizer
+- runs frequency detection task
+- logs localizer and frequency detection in BIDS format
+
+Requires Expyriment version 1.0.0
+Local setup: All localizer sounds must be in "Stimuli" folder. Sounds need "s3" prefix.
+'''
+
+# 00. PREPARATION ------------------------------------------------------------------------
+import ast
+import random
+import glob # TODO: replace with pathlib
+import numpy as np
+from pathlib import Path # instead of glob as in the OJ localizer
+import pandas as pd
+import sounddevice as sd
+from datetime import datetime 
+from expyriment import design, control, stimuli, misc, io
+
+# Import the external sequence generation file for the main task
+import create_soundtrack_soundgen as sg
+
+# TODO: Import custom-made functions. The issue is that they don't work now.
+# They functions rely on expyriment classes such as canvas ... debug!
+# import localizer
+
+# Set mode
+control.set_develop_mode(on=True) # TODO: set to False when running the real experiment
+# TODO: set OUTPUT DEVICE for soundevice to work optimally (issues with linux)
+
+# Get current time for unique ID of output files' filenames
+now = datetime.now()
+tis = int(now.timestamp())
+
+# Use current time to seed both random generators
+seed = int(tis * 1000) % 2**32
+random.seed(seed)    #CHECK: is this obsolete?
+np.random.seed(seed) #CHECK: is this obsolete?
+
+# Specify BIDS-formatted EventFiles for localizer
+## onset [msec], duration [msec], stim_file [wav], response [HIT, ...]
+## key [chr(ASCII)], press_time [msec], RT [msec]
+log_loc_format_fStr  = "{0:.3f};{1:.3f};{2};{3};{4};{5:.3f};{6:.3f}\n"
+log_loc_format_NaNs  = "{0:.3f};{1:.3f};{2};{3};{4};{5};{6}\n"
+
+#TODO: Specify BIDS-formatted EventFiles for TASK
+
+# 01. PARAMETERS -------------------------------------------------------------------------
+sesID = 14 # CHECK: randomly sample session number from "verified" session options
+params = {
+
+    # Directories
+    "PROJECT_ROOT" : "/home/mutrosa/Documents/projects/auditory_paradigms/detection_accuracy/test",
+    "AUDIO_ROOT" : "/home/mutrosa/Documents/projects/auditory_paradigms/localizer/",
+    "AUDIOFILE_REGEX" : "**/*.wav",
+    
+    # Experiment structure
+    "WAIT_TIME" : 1000, # msec (ensuring reading at the start & end of the experiment)
+    
+    # Localizer structure
+    "LOC_REP"             : 1,  # number of repetitions
+    "LOC_TRIALS"          : 10, # the number of equally long sound and silence pairs
+    "SOUNDS_PER_SEQUENCE" : 30, # determines the length of trials; each sound is 1 sec
+
+    # Visual
+    "CANVAS_SIZE"             : (1024, 768), # MRI monitor resolution.
+    "FIXATION_CROSS_SIZE"     : (40, 40),
+    "FIXATION_CROSS_POSITION" : (0, 0),
+    "FIXATION_CROSS_WIDTH"    : 4,
+    "HEADING_SIZE"            : 14, #TODO: make larger once developping is over 
+    "TEXT_SIZE"               : 12, #TODO: make larger once developping is over
+    
+    # Colors in RGB
+    "BLACK"   : (0, 0, 0),       # screen background
+    "WHITE"   : (255, 255, 255), # fixation cross
+    "CORRECT" : (0, 255, 255),   # cyan
+    "WRONG"   : (255, 165, 0),   # orange
+    
+    # Audio for task
+    "TONE_LOUDNESS"   : 70,     # dB SPL
+    "TONE_DURATION"   : 50,     # msec
+    "NUM_HARMONICS"   : 10,      # Number of harmonics
+    "HARMONIC_FACTOR" : 0.8,    # Harmonic amplitude decay factor
+    "MAX_AMPLITUDE"   : 1.14,   # Defined through a simulation
+    "SAMPLE_RATE"     : 48000,  # Hz
+    "TAU"             : 5,      # Ramping window in msec
+    
+    # Sound stimuli in localizer
+    "SOUND_STRATA"     : 84,   # the total amount of available sounds
+    "SOUND_DURATION"   : 1000, # msec
+    "SOUND_REP_PROB"   : .05,  # low enough to be stimulating/challenging
+
+    # In the MRI, the rainbow response pad is 1234, while the gun one abcd.
+    "DETECTION_SYMBOL"   : [misc.constants.K_1, misc.constants.K_2, misc.constants.K_3, misc.constants.K_4],
+    "DETECTION_ASCII"    : ['49', '50', '51', '52'],
+
+    # Text (for instructions and goodbye message)
+    "INTRO_HEADING"   : f"Welcome to the ",
+    "INTRO_TEXT_TASK" : f"When the experiment starts, you will see a white cross in the center of the screen.\n"
+                        "Please look at the cross for the entire duration of the task.\n\n"
+                        "You will hear a series of sounds. Each series has 7 sounds.\n"
+                        "Your task is to count how many sounds have a different pitch compared to the rest.\n\n "
+                        "There may be 0, 1, 2 or 3 sounds with a different pitch.\n"
+                        "After you hear the last sound of the series, press 0, 1, 2 or 3.\n"
+                        "Try to be as fast and as accurate as possible.\n\n"
+                        "If you counted well and were fast enough, the cross will change color to cyan.\n"
+                        "If you made a mistake or were too slow, the cross will change color to orange.\n\n"
+                        "We will repeat this task four times.\n"
+                        "You will have short breaks in between.\n\n\n"
+                        "It is very important that you do NOT move your arms, legs, or head until the break.\n\n"
+                        "Thank you and good luck!\n\n\n"
+                        "Whenever you are ready, press any button to start.",
+    "INTRO_TEXT_LOC"  :  f"When the experiment starts, you will see a white cross in the center of the screen.\n"
+                        "Please look at the cross for the entire duration of the task.\n\n"
+                        "You will hear a series of short sounds (animals, speech, or tools).\n"
+                        "Sometimes, the same sound will play twice in a row.\n"
+                        "When you hear a sound repeat, press any button as fast as you can.\n\n"
+                        "If you you were correct and fast enough, the cross will change color to cyan.\n"
+                        "If you made a mistake or were too slow, the cross will change color to orange.\n\n"
+                        "Each sound series will be separated by a longer silent period.\n"
+                        "During these periods, please just relax and stay still.\n\n"
+                        "It is very important that you do NOT move your arms, legs, or head until the break.\n\n"
+                        "Thank you so much and good luck!\n\n\n"
+                        "Whenever you are ready, press any button to start.",
+
+    "REST_HEADING" : "BREAK TIME",
+    "REST_TEXT"    : "Please take a moment to rest and move your body as needed.",
+    
+    "MRI_HEADING"  : "SCANNER CALIBRATION",
+    "MRI_TEXT"     : "Please remain still for a few moments.\n\nThank you!",
+
+    "END_HEADING"  : "The End of the Experiment", 
+    "END_TEXT"     : "Thank you so much for your participation!\n\n",
+}
+
+# 2. FUNCTIONS --------------------------------------------------------------------------
+# Functions needed for the localizers. TODO: import from py file as module
+def create_soundtrack(sound_strata, sequence_len, rep_prob, sequence_no):
+    '''
+    Generates sounds sequences with the following constraints:
+    (a) Each sound has a probability of repetition defined by rep_prob.
+    (b) The last two and first three sounds in the experiment are always unique.
+    (c) Sounds are distributed randomly across the experiment.
+    (d) All sounds are used fairly, avoiding selection bias.
+
+    Parameters:
+    - sound_strata: A list of all loaded sounds.
+    - sequence_len: The number of sounds per sequence.
+    - rep_prob: The probability of a sound repeating within the experiment.
+    - sequence_no: The total number of sequences.
+
+    Returns:
+    - sequences: A list of lists (sound sequences) with the above constraints.
+    '''
+
+    # Calculate the number of unique and repeated sounds across the sequences.
+    total_sounds = sequence_len * sequence_no
+    n_reps_float = rep_prob * total_sounds
+    n_reps = int(np.floor(n_reps_float) + (np.random.rand() < (n_reps_float - np.floor(n_reps_float))))
+    n_norep_max = total_sounds - n_reps
+    if n_reps > total_sounds - 5:
+        raise ValueError("Probability of repetitions is too high.")
+
+    # If the number of sounds needed in total is larger then the number of available sounds,
+    # prolong the sound strata by looping through it multiple times.
+    n_loops = int(np.ceil(total_sounds / len(sound_strata)))
+
+    # Create a list of non-repeated sounds. A repetition is when two sounds repeat consecutively.
+    resample = True
+    while resample:
+        all_strata_sounds = [sound_strata[u] for _ in range(n_loops) for u in np.random.permutation(len(sound_strata))]
+        
+        # Check for sequential repetitions in the generated sequence: no previous and current sound are the same.
+        resample = any([all_strata_sounds[u] == all_strata_sounds[u - 1] for u in range(1, len(all_strata_sounds))])
+    
+    all_unique_sounds = all_strata_sounds[:n_norep_max] # Shorten to the desired number of unique sounds.
+    all_sounds = all_strata_sounds[:total_sounds] # Shorten to the desired length of the experiment.
+
+    # Determine the indices of both sequence clashes (boundaries) and necessarily unique sounds.
+    all_idx = list(range(0,len(all_sounds)))
+    unique_idx = [0, 1, 2] + all_idx[-2:] # No repetitions for the last 2 and first 3 sounds in the experiment.
+    boundary_idx = [[all_idx[sequence_len * n - 1]] + [all_idx[sequence_len * n]] for n in range(sequence_no)]
+    boundary_idx = boundary_idx[1:] # The first pair is irrelevant (the indices of the first and last sound in the exp.)
+    
+    # Flatten the boundary indices list and add it to the unique_idx list.
+    unique_idx = np.sort(unique_idx + [item for sublist in boundary_idx for item in sublist])
+
+    # Determine the sound repetition indices (two values per repetition).
+    resample = True
+    while resample:
+
+        # Randomly sample repetition indices, ensuring no overlap with unique_idx.
+        repeat_idx = [(idx, idx + 1) for idx in np.sort(np.random.permutation(range(3, total_sounds - 1))[:n_reps])]
+        flattened_repeat_idx = [x for idx_tuple in repeat_idx for x in idx_tuple]
+
+        # Resample if idx duplicates or if any idx is in both repeat_idx and unique_idx.
+        resample = any([ix0 == ix1 for ix0, ix1 in zip(flattened_repeat_idx[1:], flattened_repeat_idx[:-1])])
+        resample = resample or bool(set(flattened_repeat_idx) & set(unique_idx))
+
+        assert len(repeat_idx) == n_reps # This should be unnecessary if the resampling logic is correct.
+
+    # Create a sequence of all sounds presented in the experiment.
+    for idx1, idx2 in repeat_idx:
+        repeated_sound   = all_sounds[idx1]
+        all_sounds[idx2] = repeated_sound
+
+    # Separate the all_sounds sequence into separate sequences.
+    sequences = [all_sounds[sequence_len * n : sequence_len * (n + 1)] for n in range(sequence_no)]
+
+    return sequences
+
+def compute_durations(pars, clock_start, clock_end, verbose=True):
+    '''
+    Computes the predicted and actual durations of sound or silence parts in trials.
+
+    Parameters:
+    - pars: A dictionary, containing all user-defined parameters.
+    - clock_start: Start time given by the Expyriment's clock.
+    - clock_end: Start time given by the Expyriment's clock.
+    - verbose: Prints the computed durations in the terminal when True.
+
+    Returns:
+    - dur_predicted: The predicted trial duration, which is calculated from the user-defined audio parameters.
+    - dur_actual: The actual trial duration, which is calculated from times given by Expyriment's clock.
+    '''
+    dur_predicted = pars['SOUNDS_PER_SEQUENCE'] * pars['SOUND_DURATION']
+    dur_actual    = clock_end - clock_start
+
+    if verbose:
+        print(f'Predicted duration: {dur_predicted} msec. Actual duration: {dur_actual} msec.')
+
+    return (dur_predicted, dur_actual)
+
+def give_feedback(current_sound, position_in_sequence, response, good, bad):
+    '''
+    Determines the response category for a given response to a sound display.
+    gives feedback by changing the color of the fixation cross.
+    
+    Parameters:
+    - current_sound: The name of the sound that is currently being played (str).
+    - position_in_sequence: The index of the sound in the current sound sequence (int).
+    - response: The identity of the key pressed in ASCII code.
+    - good: A class implementing fixation cross for correct responses (green/cyan).
+    - bad: A class implementing fixation cross for wrong responses (red/orange).
+
+    Returns:
+    - perfo_code: The response category (str).
+    - run_performance: Dictionary tracking performance across runs (dict).
+    - current_sound_key: The current stimuli name as obtained outside the funtion (str).
+    - feeedback_status: Indicates whether feedback is given or not (boolean).
+    '''
+    # sounds_in_sequence is an empty dictionary. 
+    # reversed_strata represents the reversed sound_strata dictionary. 
+    # Dict keys are sounds names (e.g.: s3_animal_1_ramp10.wav) 
+    # Dict values are expyriment audio object IDs, (e.g.: <expyriment.stimuli._audio.Audio object at 0x0000018DED268E08>).
+    global sounds_in_sequence, reversed_strata, run_performance
+
+    # Define current and previous sounds with names. 
+    # Each sound presented in the experiment has a unique ID.
+    # A sound repetition will have the same name but different ID.
+    prev_sound_key    = sounds_in_sequence[position_in_sequence - 1] if position_in_sequence > 0 else None
+    current_sound_key = reversed_strata.get(current_sound)
+
+    # Default values
+    perfo_code, feedback_status = None, None
+
+    # Feedback structure
+    if current_sound_key == prev_sound_key:
+        if response is not None:
+            good.present(clear = False, log_event_tag = True); run_performance["H"] += 1; perfo_code = "HIT"; feedback_status = True
+        elif response is None:
+            bad.present(clear = False, log_event_tag = True); run_performance["M"] += 1; perfo_code = "MISS"; feedback_status = True
+    
+    else:
+        if response is None:
+            run_performance["CR"] += 1; perfo_code = "CORR_REJECTION"; feedback_status = False
+        elif response is not None:
+            bad.present(clear = False, log_event_tag = True); run_performance["FA"] += 1; perfo_code = "FALSE_ALARM"; feedback_status = True
+
+    return perfo_code, run_performance, current_sound_key, feedback_status
+
+def play_sounds(sequence, sound_duration, exp, canvas, fixation, correct, wrong, keyboard, response_keys, log_events_sound):
+    '''
+    Plays one sound sequence, where sounds are presented one after the other.
+
+    Parameters:
+    - sequence: A single sequence of sounds (list) from the create_soundtrack() output.
+    - sound_duration: The duration of individual sounds. All sounds need to have the same duration.
+    - exp: A class implementing a basic experiment in expyriment.
+    - canvas: A class implementing a canvas stimulus in expyriment.
+    - fixation: A class implementing a general fixation cross in expyriment (white).
+    - correct: A class implementing fixation cross for correct responses (green/cyan).
+    - wrong: A class implementing fixation cross for incorrect responses (red/orange).  
+    - keyboard: A class implementing a keyboard input in expyriment.
+    - response_keys: A list of accepted keys for responding (depends on the chosen response pad).
+    - log_events_sound: A file containing information about events, following BIDS specification.
+
+    Returns:
+    - sounds_start: Time (float), indicating the start of the sound sequence.
+    - sounds_end: Time (float), indicting the end of the sound sequence.
+    '''
+    global sounds_in_sequence, run_start_time, run_performance
+    feedback_shown, fs = None, None
+    sounds_start = exp.clock.time
+
+    # Sound ID refers to the specific sound in the experiment
+    # Sound repetitions have different sound IDs
+    for count, sound_ID in enumerate(sequence):
+
+        # Check if quit key is pressed
+        keyboard.check(keys=[misc.constants.K_y])
+
+        # Refresh the screen when feedback was given
+        if feedback_shown is not None and count - feedback_shown == 2:
+            canvas.present()
+
+        # Stamp audio start time and play
+        audio_start = exp.clock.time
+        sound_ID.play(maxtime=sound_duration, log_event_tag=True)
+
+        key_ASCII_audio, key_log_entry = None, None
+
+        # Check for key presses while the sound is playing
+        while sound_ID.is_playing and sound_ID.time < audio_start + sound_duration:
+
+            # Non-blocking function to check for pressed keys
+            keys = keyboard.read_out_buffered_keys()
+
+            # ------ Key-press trials ------ 
+            if keys and keys[0] != 115: # 115 is "s" from scanner sync box
+                press_time = exp.clock.time
+                key_ASCII_audio = keys[0] # If multiple, we take the first key
+
+                # Show feedback
+                perf_code, run_performance, cs, fs = give_feedback(sound_ID,
+                                                                   count,
+                                                                   key_ASCII_audio,
+                                                                   correct,
+                                                                   wrong)
+                
+                # Logging
+                if key_ASCII_audio is not None:
+                    key_log_entry = {
+                        "onset":      np.abs(audio_start - run_start_time) / 1000,
+                        "duration":   sound_duration / 1000, # dummy duration
+                        "stim_file":  cs.split("stimuli/")[1],
+                        "response":   perf_code,
+                        "key":        chr(key_ASCII_audio),
+                        "press_time": np.abs(press_time - run_start_time) / 1000,
+                        "RT":         np.abs(press_time - audio_start) / 1000
+                    }
+
+        # After the sound has stopped playing
+        audio_end = exp.clock.time
+
+        # Correct sound duration for key trials
+        if key_log_entry is not None:
+            key_log_entry["duration"] = np.abs(audio_end - audio_start) / 1000
+            log_events_sound.write(log_loc_format_fStr.format(
+                                                key_log_entry["onset"],
+                                                key_log_entry["duration"],
+                                                key_log_entry["stim_file"],
+                                                key_log_entry["response"],
+                                                key_log_entry["key"],
+                                                key_log_entry["press_time"],
+                                                key_log_entry["RT"]
+                                    ))
+
+        # ------ No-key trials ------   
+        if not key_ASCII_audio:
+            
+            # Show feedback
+            perf_code, run_performance, cs, fs = give_feedback(sound_ID,
+                                                               count,
+                                                               key_ASCII_audio,
+                                                               correct,
+                                                               wrong)
+            
+            # Logging
+            log_events_sound.write(log_loc_format_NaNs.format(
+                np.abs(run_start_time - audio_start) / 1000, # onset
+                np.abs(audio_end - audio_start) / 1000,      # duration
+                cs.split("stimuli/")[1],                     # stim_file
+                perf_code,                                   # response
+                "n/a",                                       # key
+                "n/a",                                       # press time
+                "n/a"                                        # RT
+            ))
+        
+        # Update feedback tracking and sequence record
+        if fs:
+            feedback_shown = count
+
+        # Update sounds in sequence for correct feedback
+        sounds_in_sequence.append(cs)
+
+    sounds_end = exp.clock.time
+    return sounds_start, sounds_end
+
+def play_silence(null_sound, sound_duration, exp, null_number, keyboard, response_keys, log_events_null):
+    '''
+    Plays one silent sequence, where a single null sound is presented repetitively.
+
+    Parameters:
+    - null_sound: A single preloaded null sound.
+    - sound_duration: The duration of the null sound.
+    - exp: A class implementing a basic experiment in expyriment.
+    - null_number: The number of null sound repetitions.
+    - keyboard: A class implementing a keyboard input in expyriment.
+    - response_keys: A list of accepted keys for responding (depends on the chosen response pad).
+    - log_events_null: A file containing information about events, following BIDS specification.
+
+    Returns:
+    - silence_start: Time (float), indicating the start of the silence.
+    - silence_end: Time (float), indicting the end of the silence.
+    '''
+    global run_start_time
+    silence_start = exp.clock.time
+
+    for null_event in range(null_number):
+
+        # Check if quit key is pressed
+        keyboard.check(keys=[misc.constants.K_y])
+
+        # Refresh screen (needed if quit key is pressed)
+        canvas.present()
+
+        # Stamp audio start time and play
+        null_start = exp.clock.time
+        null_sound.play(maxtime=sound_duration, log_event_tag=True)
+
+        key_ASCII_silence, key_log_entry = None, None
+
+        # Check for key presses while the sound is playing
+        while null_sound.is_playing and null_sound.time < null_start + sound_duration:
+
+            # Non-blocking function to check for pressed keys
+            keys = keyboard.read_out_buffered_keys()
+
+            # ------ Key-press trials ------ 
+            if keys and keys[0] != 115: # 115 is "s" from scanner sync box
+                press_time = exp.clock.time
+                key_ASCII_silence = keys[0] # If multiple, we take the first key
+
+                # Logging
+                if key_ASCII_silence is not None:
+                    key_log_entry = {
+                        "onset": np.abs(null_start - run_start_time) / 1000,
+                        "duration": sound_duration / 1000, # dummy duration
+                        "stim_file": "null_event.wav",
+                        "response": "n/a",
+                        "key": chr(key_ASCII_silence),  
+                        "press_time": np.abs(press_time - run_start_time) / 1000,
+                        "RT": np.abs(press_time - null_start) / 1000
+                    }
+
+        # After the sound has stopped playing
+        null_end = exp.clock.time
+
+        # Correct the sound duration for key trials
+        if key_log_entry is not None:
+            key_log_entry["duration"] = np.abs(null_end - null_start) / 1000
+            log_events_null.write(log_loc_format_fStr.format(
+                                                key_log_entry["onset"],
+                                                key_log_entry["duration"],
+                                                key_log_entry["stim_file"],
+                                                key_log_entry["response"],
+                                                key_log_entry["key"],
+                                                key_log_entry["press_time"],
+                                                key_log_entry["RT"]
+                                    ))
+
+        # ------ No-key trials ------ 
+        if not key_ASCII_silence:
+            log_events_null.write(log_loc_format_NaNs.format(
+                np.abs(run_start_time - null_start) / 1000, # onset
+                np.abs(null_end - null_start) / 1000,       # duration
+                "null_event.wav",                           # stim_file
+                "n/a",                                      # response
+                "n/a",                                      # key
+                "n/a",                                      # press time
+                "n/a"                                       # RT
+            ))
+    
+    silence_end = exp.clock.time
+    return silence_start, silence_end
+
+# 03. LOAD STIMULI -----------------------------------------------------------------------
+# Load audio stimuli for localizer
+wav_filepaths = glob.glob(f'{params["AUDIO_ROOT"]}/{params["AUDIOFILE_REGEX"]}')
+sounds_all = ["stimuli" + file_1.split("stimuli", 1)[1] for file_1 in wav_filepaths if "s3" in file_1]
+random.shuffle(sounds_all)
+filename_silence = ["stimuli" + file_2.split("stimuli", 1)[1] for file_2 in wav_filepaths if "null" in file_2][0]
+
+# Load the trial parameters from csv for main task
+homePath  = Path(params["PROJECT_ROOT"])
+paramPath = homePath / f"exp_parameter_combo_ses-{sesID:003d}.csv"
+df        = pd.read_csv(paramPath)
+no_blocks = len(df["block_no"].unique())
+
+# Ensure that the trials are ordered by block & trial IDs
+df.sort_values(by=["block_no", "trial_no"], inplace=True)
+
+# Ensure correct data types in columns with lists as row values.
+list_cols = ["freq_dev", "freq_dev_type", "freq_loc", "freq_diff", "freq_diff_abs"]
+for col in list_cols:
+    df[col] = df[col].apply(
+    lambda x: ast.literal_eval(x) if isinstance(x, str) else x
+    )
+
+# 04. INITIALIZE THE EXPERIMENT ----------------------------------------------------------
+sesh = input("Enter the session number with leading zero (e.g.: 01, 02, ...):")
+exp  = design.Experiment(name = "devLoc") # give a name following BIDS specification
+control.initialize(exp)
+
+# Set variables to be saved for the main task # TODO: modify & get info from soundgen
+# exp.add_data_variable_names(['SUB_ID', 'SESSION_NO', 'BLOCK_NO', 'TRIAL_NO', 
+#                              'NO_TONES', 'TONE_IDX', 'ISI', 'DELTA', 'RESPONSE', 'RT'])
+
+# 05. CREATE & PRELOAD THE STIMULI -------------------------------------------------------
+# Creating stimuli.
+keyboard = io.Keyboard()
+
+canvas        = stimuli.Canvas(size = params["CANVAS_SIZE"], colour = params["BLACK"])
+blank_canvas  = stimuli.Canvas(size = params["CANVAS_SIZE"], colour = params["BLACK"])
+
+scanner_text  = stimuli.TextScreen(
+    params["MRI_HEADING"],
+    params["MRI_TEXT"],
+    heading_size=params["HEADING_SIZE"],
+    heading_colour=params["WHITE"],
+    text_size=params["TEXT_SIZE"],
+    text_colour=params["WHITE"]
+    )
+instructions_loc  = stimuli.TextScreen(
+    params["INTRO_HEADING"] + "repetition detection experiment!",
+    params["INTRO_TEXT_LOC"],
+    heading_size=params["HEADING_SIZE"],
+    heading_colour=params["WHITE"],
+    text_size=params["TEXT_SIZE"],
+    text_colour=params["WHITE"]
+    )
+instructions_task = stimuli.TextScreen(
+    params["INTRO_HEADING"] + "counting experiment!",
+    params["INTRO_TEXT_TASK"],
+    heading_size=params["HEADING_SIZE"],
+    heading_colour=params["WHITE"],
+    text_size=params["TEXT_SIZE"],
+    text_colour=params["WHITE"]
+    )
+goodbye_message = stimuli.TextScreen(
+    params["END_HEADING"],
+    params["END_TEXT"],
+    heading_size=params["HEADING_SIZE"],
+    heading_colour=params["WHITE"],
+    text_size=params["TEXT_SIZE"],
+    text_colour=params["WHITE"]
+    )
+rest_task = stimuli.TextScreen(
+    params["REST_HEADING"],
+    params["REST_TEXT"],
+    heading_size=params["HEADING_SIZE"],
+    heading_colour=params["WHITE"],
+    text_size=params["TEXT_SIZE"],
+    text_colour=params["WHITE"]
+    )
+# TODO: have two rest instuctions, so two different stimuli, one for task, one for localizer
+# the one for localizer prints update on correctly detected repetitions and the one for task
+# prints updated on correctly counted freq devs. Since this is performance-based, it has to be
+# at the end of the experiment (see localizer!)-
+
+fix_cross = stimuli.FixCross(size = params["FIXATION_CROSS_SIZE"], position = params["FIXATION_CROSS_POSITION"], line_width = params["FIXATION_CROSS_WIDTH"], colour = params["WHITE"])
+wrong     = stimuli.FixCross(size = params["FIXATION_CROSS_SIZE"], position = params["FIXATION_CROSS_POSITION"], line_width = params["FIXATION_CROSS_WIDTH"], colour = params["WRONG"])
+correct   = stimuli.FixCross(size = params["FIXATION_CROSS_SIZE"], position = params["FIXATION_CROSS_POSITION"], line_width = params["FIXATION_CROSS_WIDTH"], colour = params["CORRECT"])
+
+# Get sounds for localizer
+silence = stimuli.Audio(filename_silence)
+sounds  = {filename: stimuli.Audio(filename) for filename in sounds_all}
+
+# Get sounds for main task
+## Initialize the sound generation class
+sound_gen = sg.SoundGen(params["SAMPLE_RATE"], params["TAU"])
+
+# Preloading ensures fast stimuli presentation.
+scanner_text.preload(); goodbye_message.preload()
+instructions_loc.preload(); instructions_task.preload()
+rest_task.preload()
+fix_cross.preload(); fix_cross.plot(canvas)
+blank_canvas.preload(); canvas.preload()
+wrong.preload(); correct.preload()
+silence.preload()
+for s in sounds.values():
+    s.preload()
+
+# Create soundtrack of preloaded sounds for the localizer
+## Pair sound ID names (for expyriment presentation) and filenames (for data storage).
+sound_strata = random.sample(list(sounds.items()), params["SOUND_STRATA"])
+sound_strata = dict(sound_strata)
+reversed_strata = {value: key for key, value in sound_strata.items()} # Works because values are unique!
+soundtrack = create_soundtrack(
+    sound_strata = list(sound_strata.values()),
+    sequence_len = params["SOUNDS_PER_SEQUENCE"],
+    rep_prob = params["SOUND_REP_PROB"],
+    sequence_no = params["LOC_TRIALS"] * params["LOC_REP"]
+    )
+
+# 06. RUN THE EXPERIMENT -----------------------------------------------------------------
+control.start(skip_ready_screen=True)
+
+### ------------------ LOCALIZER  ------------------ ##
+# Decide randomly to start with silence or sound.
+start_with_sound = random.choice([True, False])
+
+# Present instructions for the repetition detection task.
+# Wait a minimal time needed to read the instructions.
+instructions_loc.present()
+exp.clock.wait(params["WAIT_TIME"])
+keyboard.wait(keys=params['DETECTION_SYMBOL'])
+
+# Clear and present a blank screen.
+instructions_loc.clear_surface()
+blank_canvas.present()
+
+loop = 0
+# Start the structure of the experiment
+# for run in range(params["LOC_REP"]):
+
+#     # Initialize the log with unique timestamps.
+#     nw = datetime.now()
+#     ts = int(nw.timestamp())
+#     event_output = io.OutputFile(suffix = sesh, directory = f'bids_output')
+#     event_output.write("onset;duration;stim_file;response;key;press_time;response_time\n")
+#     run_performance = {"H": 0, "M": 0, "CR": 0, "FA": 0}
+#     canvas.present()
+
+#     # Wait for onset of functional sequence
+#     keyboard.wait(keys=[misc.constants.K_s])
+#     canvas.present()
+
+#     # Mark the start of the functional sequence
+#     run_start_time = exp.clock.time
+
+#     # Wait for 4 's' keys from the scanner to synchronize scanner & script onsets.
+#     keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
+#     keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
+
+#     # Loop through the trials
+#     for trial in range(params["LOC_TRIALS"]):
+
+#         # Refresh screen
+#         canvas.present()
+
+#         # Check if quit key is pressed
+#         keyboard.check(keys=[misc.constants.K_y])
+
+#         if start_with_sound:
+
+#             # Sound part
+#             sounds_in_sequence = []
+#             t1, t2 = play_sounds(soundtrack[loop],
+#                         params["SOUND_DURATION"],
+#                         exp,
+#                         canvas,
+#                         fix_cross,
+#                         correct,
+#                         wrong,
+#                         keyboard,
+#                         params["DETECTION_SYMBOL"],
+#                         event_output)
+
+#             # Refresh the screen
+#             canvas.present()
+
+#             # Silent part
+#             t3, t4 = play_silence(silence,
+#                         params["SOUND_DURATION"],
+#                         exp,
+#                         params["SOUNDS_PER_SEQUENCE"],
+#                         keyboard,
+#                         params["DETECTION_SYMBOL"],
+#                         event_output)
+#             print("SOUND FIRST:"); compute_durations(params, t1, t2, True); compute_durations(params, t3, t4, True)
+            
+#             # Refresh the screen
+#             canvas.present()
+
+#         else:
+#             # Silent part
+#             t5, t6 = play_silence(silence,
+#                         params["SOUND_DURATION"],
+#                         exp,
+#                         params["SOUNDS_PER_SEQUENCE"],
+#                         keyboard,
+#                         params["DETECTION_SYMBOL"],
+#                         event_output)
+
+#             # Refresh the screen
+#             canvas.present()
+
+#             # Sound part
+#             sounds_in_sequence = []
+#             t7, t8 = play_sounds(soundtrack[loop],
+#                         params["SOUND_DURATION"],
+#                         exp,
+#                         canvas,
+#                         fix_cross,
+#                         correct,
+#                         wrong,
+#                         keyboard,
+#                         params["DETECTION_SYMBOL"],
+#                         event_output)
+#             print("SILENCE FIRST:"); compute_durations(params, t5, t6, True); compute_durations(params, t7, t8, True)
+
+#             # Refresh the screen
+#             canvas.present()
+
+#         # Update the count
+#         loop += 1
+
+#     # Save the log
+#     event_output.rename(f"sub-{exp.subject:02d}_ses-{sesh}_task-{exp.name}_ts-{ts}_events.tsv")
+#     event_output.save()
+
+#     # The experiment ends before the MRI protocol. Inform the participant to keep calm and remain still.
+#     blank_canvas.present()
+#     scanner_text.present()
+
+#     # Wait for the MRI QU to end the run by pressing a key unavailable to the participant.
+#     keyboard.wait(keys = [misc.constants.K_e])
+
+### ------------------ MAIN TASK  ------------------ ##
+# TODO: Rename output data for the main task
+# exp.data.rename(f"sub-{exp.subject:02d}_ses-{sesh}_task-{exp.name}_ts-{ts}.tsv")   
+# exp.events.rename(f"sub-{exp.subject:02d}_ses-{sesh}_task-{exp.name}_ts-{ts}.tsv") 
+
+# Present instructions for the counting task.
+# Wait a minimal time needed to read the instructions.
+instructions_task.present()
+exp.clock.wait(params["WAIT_TIME"])
+keyboard.wait(keys=params['DETECTION_SYMBOL'])
+
+# Clear and present a blank screen.
+instructions_task.clear_surface()
+blank_canvas.present()
+
+# Wait for onset of the functional sequence for the main task
+keyboard.wait(keys=[misc.constants.K_s])
+canvas.present()
+
+# Mark the start of the functional sequence for the main task
+task_start_time = exp.clock.time
+
+# Wait for 4 's' keys from the scanner to synchronize scanner & script onsets.
+keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
+keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
+
+# Play the soundtrack over the blocks
+for block in range(no_blocks):
+
+    # Correct for zero-indexing
+    block_idx = block + 1
+
+    # Select only the part of the dataframe relevant for the current trial
+    df_block = df[df["block_no"] == block_idx]
+
+    # Generate the soundtrack of the experimental session
+    for soundtrack in sound_gen.generate_soundtrack(
+       df_block,
+       params["MAX_AMPLITUDE"],
+       params["NUM_HARMONICS"], 
+       params["TONE_DURATION"], 
+       params["HARMONIC_FACTOR"],
+       params["TONE_LOUDNESS"]
+       ):
+
+        # Check if quit key is pressed during the trial
+        keyboard.check(keys=[misc.constants.K_ESCAPE])
+
+        sd.play(soundtrack, samplerate = params["SAMPLE_RATE"])
+
+        # Play the trial until the end
+        sd.wait()
+
+    # At the end of each block, give time to rest (works as inter-block-interval)
+    if block != len(no_blocks) - 1:
+        rest_task.present()
+        keyboard.wait(keys=params['DETECTION_SYMBOL'])
+
+goodbye_message.present()
+exp.clock.wait(params["WAIT_TIME"])
+
+#7: END EXPERIMENT
+control.end()
