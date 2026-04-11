@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 # Time-stamp: <06-02-2025 m.utrosa@bcbl.eu>
+# Script for Expyriment version 0.10.0
 
 # 0. PREPARATION ------------------------------------------------------------------------
 import numpy as np
@@ -13,7 +14,7 @@ sesh = input("Enter the session number with 0 prefixed (e.g.: 01, 02):")
 
 # Get current time for unique ID of output files
 now = datetime.now()
-tis  = int(now.timestamp())
+tis = int(now.timestamp())
 
 # Use current time to seed both random generators
 seed = int(tis * 1000) % 2**32
@@ -21,17 +22,18 @@ random.seed(seed)
 np.random.seed(seed)
 
 # Speficy BIDS-formatted EventFile
-# onset [sec], duration [sec], type [key/sound], correct [HIT/FALSE_ALARM/...].
-log_format_fStr  = "{0:.3f};{1:.3f};{2};{3};{4}\n"
-log_format_NaNs  = "{0:.3f};{1:.3f};{2};{3};{4}\n"
+# onset [msec], duration [msec], stim_file [wav], response [HIT, ...]
+# key [chr(ASCII)], press_time [msec], RT [msec]
+log_format_fStr  = "{0:.3f};{1:.3f};{2};{3};{4};{5:.3f};{6:.3f}\n"
+log_format_NaNs  = "{0:.3f};{1:.3f};{2};{3};{4};{5};{6}\n"
 params = {
 
 	# Local setup: All sounds must be in "Stimuli" folder. Sounds need "s3" prefix.
-	"AUDIO_DIRECTORY" : "C:/Users/Experimental User/Desktop/SUBCORT_HIGHRES/",
+	"AUDIO_DIRECTORY" : "/home/mutrosa/Documents/projects/auditory_paradigms/localizer/",
 	"AUDIOFILE_REGEX" : "**/*.wav",
 
 	# Experiment structure
-	"RUNS"     	   			: 3,  # the number of functional MRI sequences
+	"RUNS"     	   			: 4,  # the number of functional MRI sequences
 	"NO_TRIALS"	   			: 10, # the number of equally long sound and silence pairs
 	"SOUNDS_PER_SEQUENCE"   : 30, # determines the length of trials; each sound is 1 sec
 
@@ -50,25 +52,25 @@ params = {
 						 "\nPress any button as quickly as you can when you hear a sound repetition.\n"
 						 "\nYou will receive feedback: cyan (correct) and orange (incorrect).\n"
 						 "\nDuring silent periods, just relax and stay still without moving your arms, legs, or head.\n"
-						 "\nWe will repeat this task 3 times. Each run lasts around 12 minutes, with rest breaks in between.\n"
+						 "\nWe will repeat this task a few times and you will have breaks to rest in between.\n"
 						 "\nPress any button to start.",
 	"REST_HEADING" : "BREAK TIME",
 	"REST_TEXT"    : "Please take a moment to rest and realign your body as needed.",
 	"MRI_HEADING"  : "SCANNER CALIBRATION",
-	"MRI_TEXT"     : "Please remain still for a moment.\n\n Thank you!",
+	"MRI_TEXT"     : "Please remain still for a few moments.\n\nThank you!",
 
 	# Colors in RGB
 	"BLACK"   : (0, 0, 0),	     # screen background
 	"WHITE"   : (255, 255, 255), # fixation cross
-	"CORRECT" : (0,255,255),     # Cyan
-	"WRONG"   : (255,165,0),     # Orange
+	"CORRECT" : (0,255,255),     # cyan
+	"WRONG"   : (255,165,0),     # orange
 
 	# Sound
 	"SOUND_STRATA"     : 84,   # the total amount of available sounds
 	"SOUND_DURATION"   : 1000, # msec
-	"SOUND_REP_PROB"   : .05,
+	"SOUND_REP_PROB"   : .05,  # low enough to be stimulating/challenging
 
-	# The rainbow response pad is 1234, while the gun one abcd.
+	# In the MRI, the rainbow response pad is 1234, while the gun one abcd.
 	"DETECTION_SYMBOL"   : [misc.constants.K_1, misc.constants.K_2, misc.constants.K_3, misc.constants.K_4],
 	"DETECTION_ASCII"    : ['49', '50', '51', '52']
 }
@@ -206,22 +208,21 @@ def give_feedback(current_sound, position_in_sequence, response, good, bad):
 	# Feedback structure
 	if current_sound_key == prev_sound_key:
 		if response is not None:
-			good.present(); run_performance["H"] += 1; perfo_code = "HIT"; feedback_status = True
+			good.present(clear = False, log_event_tag = True); run_performance["H"] += 1; perfo_code = "HIT"; feedback_status = True
 		elif response is None:
-			bad.present(); run_performance["M"] += 1; perfo_code = "MISS"; feedback_status = True
+			bad.present(clear = False, log_event_tag = True); run_performance["M"] += 1; perfo_code = "MISS"; feedback_status = True
 	
 	else:
 		if response is None:
 			run_performance["CR"] += 1;	perfo_code = "CORR_REJECTION"; feedback_status = False
 		elif response is not None:
-			bad.present(); run_performance["FA"] += 1; perfo_code = "FALSE_ALARM"; feedback_status = True
+			bad.present(clear = False, log_event_tag = True); run_performance["FA"] += 1; perfo_code = "FALSE_ALARM"; feedback_status = True
 
 	return perfo_code, run_performance, current_sound_key, feedback_status
 
-def play_sounds(sequence, sound_duration, exp, canvas, fixation, correct, wrong,
-				keyboard, response_keys, log_events_sound):
+def play_sounds(sequence, sound_duration, exp, canvas, fixation, correct, wrong, keyboard, response_keys, log_events_sound):
 	'''
-	Plays one sound sequence, where sounds are presented one after the other (immediately).
+	Plays one sound sequence, where sounds are presented one after the other.
 
 	Parameters:
 	- sequence: A single sequence of sounds (list) from the create_soundtrack() output.
@@ -230,76 +231,101 @@ def play_sounds(sequence, sound_duration, exp, canvas, fixation, correct, wrong,
 	- canvas: A class implementing a canvas stimulus in expyriment.
 	- fixation: A class implementing a general fixation cross in expyriment (white).
 	- correct: A class implementing fixation cross for correct responses (green/cyan).
-	- wrong: A class implementing fixation cross for correct responses (red/orange).	
+	- wrong: A class implementing fixation cross for incorrect responses (red/orange).	
 	- keyboard: A class implementing a keyboard input in expyriment.
 	- response_keys: A list of accepted keys for responding (depends on the chosen response pad).
-	- log_events_sound: A file containing information about events, following BIDS specification. 
+	- log_events_sound: A file containing information about events, following BIDS specification.
+	
+	Returns:
+	- sounds_start: Time (float), indicating the start of the sound sequence.
+	- sounds_end: Time (float), indicting the end of the sound sequence.
 	'''
 	global sounds_in_sequence, run_start_time, run_performance
-	
-	# Sound ID refers to the specific sound in the experiment (repetitions have different sound IDs)
 	feedback_shown, fs = None, None
+	sounds_start = exp.clock.time
 
+	# Sound ID refers to the specific sound in the experiment
+	# Sound repetitions have different sound IDs
 	for count, sound_ID in enumerate(sequence):
+
+		# Check if quit key is pressed
+		keyboard.check(keys=[misc.constants.K_y])
 
 		# Refresh the screen when feedback was given
 		if feedback_shown is not None and count - feedback_shown == 2:
 			canvas.present()
 
-		# Stamp audio timing and play
+		# Stamp audio start time and play
 		audio_start = exp.clock.time
-		audio_end   = audio_start + sound_duration
 		sound_ID.play(log_event_tag=True)
 
 		key_ASCII_audio = None
 
-		# Loop until sound ends, but don’t block
-		while exp.clock.time <= audio_end:
+		# Check for key presses while the sound is playing
+		while exp.clock.time <= audio_start + sound_duration:
 
-			# Check for key presses while audio is playing.
+			# Non-blocking function to check for pressed keys
 			keys = keyboard.read_out_buffered_keys()
 
-			# Logging key-press trials.
-			if keys and keys[0] != 115:
-				key_ASCII_audio = keys[0]
+			# ------ Key-press trials ------ 
+			if keys and keys[0] != 115: # 115 is "s" from scanner sync box
+				press_time = exp.clock.time
+				key_ASCII_audio = keys[0] # If multiple, we take the first key
+				
+				# Show feedback
 				perf_code, run_performance, cs, fs = give_feedback(sound_ID,
 																   count,
 																   key_ASCII_audio,
 																   correct,
 																   wrong)
+				
+				# Logging
 				if key_ASCII_audio is not None:
 					log_events_sound.write(log_format_fStr.format(
-						(exp.clock.time - run_start_time) / 1000, # onset
-						(audio_end - audio_start) / 1000, 		  # duration
-						cs.split("\\")[1],  				  # stim_file
-						perf_code, 								  # response
-						chr(key_ASCII_audio)					  # key
+						np.abs(audio_start - run_start_time) / 1000, # onset
+						sound_duration / 1000,                       # dummy duration
+						cs.split("stimuli/")[1],                           # stim_file
+						perf_code,                                   # response
+						chr(key_ASCII_audio)                         # key
+						np.abs(press_time - run_start_time) / 1000   # press time
+						np.abs(press_time - audio_start) / 1000      # RT
 					))
 
-		# Logging no-key trials.	
+		# After the sound has stopped playing
+		audio_end = exp.clock.time
+
+		# ------ No-key trials ------ 	
 		if not key_ASCII_audio:
+
+			# Show feedback
 			perf_code, run_performance, cs, fs = give_feedback(sound_ID,
 															   count,
 															   key_ASCII_audio,
 															   correct,
 															   wrong)
+			
+			# Logging
 			log_events_sound.write(log_format_NaNs.format(
-				(audio_start - run_start_time) / 1000, # onset
-				(audio_end - audio_start) / 1000, 	   # duration
-				cs.split("\\")[1],  			   # stim_file
-				perf_code, 							   # response
-				"n/a" 								   # key
+				np.abs(run_start_time - audio_start) / 1000, # onset
+				np.abs(audio_end - audio_start) / 1000,      # duration
+				cs.split("stimuli/")[1],                     # stim_file
+				perf_code,                                   # response
+				"n/a",                                       # key
+				"n/a",                                       # press time
+				"n/a"                                        # RT
 			))
 		
 		# Update feedback tracking and sequence record
 		if fs:
 			feedback_shown = count
 
-		# Update sounds in sequence for correct feedback.
+		# Update sounds in sequence for correct feedback
 		sounds_in_sequence.append(cs)
 
-def play_silence(null_sound, sound_duration, exp, null_number, keyboard,
-				 response_keys, log_events_null):
+	sounds_end = exp.clock.time
+	return sounds_start, sounds_end
+
+def play_silence(null_sound, sound_duration, exp, null_number, keyboard, response_keys, log_events_null):
 	'''
 	Plays one silent sequence, where a single null sound is presented repetitively.
 
@@ -310,44 +336,69 @@ def play_silence(null_sound, sound_duration, exp, null_number, keyboard,
 	- null_number: The number of null sound repetitions.
 	- keyboard: A class implementing a keyboard input in expyriment.
 	- response_keys: A list of accepted keys for responding (depends on the chosen response pad).
-	- log_events_null: A file containing information about events, following BIDS specification. 
+	- log_events_null: A file containing information about events, following BIDS specification.
+	
+	Returns:
+	- silence_start: Time (float), indicating the start of the silence.
+	- silence_end: Time (float), indicting the end of the silence.
 	'''
 	global run_start_time
+	silence_start = exp.clock.time
 
 	for null_event in range(null_number):
+
+		# Check if quit key is pressed
+		keyboard.check(keys=[misc.constants.K_y])
+
+		# Refresh screen (needed if quit key is pressed)
+		canvas.present()
+
+		# Stamp audio start time and play
 		null_start = exp.clock.time
-		null_end   = null_start + sound_duration
 		null_sound.play(log_event_tag=True)
 
 		key_ASCII_silence = None
 
-		# Loop until sound ends, but don’t block
-		while exp.clock.time <= null_end:
+		# Check for key presses while the sound is playing
+		while exp.clock.time <= null_start + sound_duration:
 
-			# Check for key presses while audio is playing.
+			# Non-blocking function to check for pressed keys
 			keys = keyboard.read_out_buffered_keys()
 
-			# Logging key-press trials.
-			if keys and keys[0] != 115:
-				key_ASCII_silence = keys[0]
+			# ------ Key-press trials ------ 
+			if keys and keys[0] != 115: # 115 is "s" from scanner sync box
+				press_time = exp.clock.time
+				key_ASCII_silence = keys[0] # If multiple, we take the first key
+
+				# Logging
 				if key_ASCII_silence is not None:
 					log_events_null.write(log_format_NaNs.format(
-						(exp.clock.time - run_start_time) / 1000, # onset
-						(null_end - null_start) / 1000,		      # duration
-						"null_event.wav",   					  # stim_file
-						"FALSE_ALARM",							  # response
-						chr(key_ASCII_silence)  				  # key
+						np.abs(null_start - run_start_time) / 1000, # onset
+						sound_duration / 1000,                      # dummy duration
+						"null_event.wav",                           # stim_file
+						"n/a",                                      # response
+						chr(key_ASCII_silence),                     # key
+					    np.abs(press_time - run_start_time) / 1000, # press time
+					    np.abs(press_time - null_start) / 1000      # RT
 					))
 
-		# Logging no-key trials.
+		# After the sound has stopped playing
+		null_end = exp.clock.time
+
+		# ------ No-key trials ------ 
 		if not key_ASCII_silence:
 			log_events_null.write(log_format_NaNs.format(
-				(null_start - run_start_time) / 1000, # onset
-				(null_end - null_start) / 1000,		  # duration
-				"null_event.wav",  					  # stim_file
-				"CORR_REJECTION",			          # response
-				"n/a"   							  # key
+				np.abs(run_start_time - null_start) / 1000, # onset
+				np.abs(null_end - null_start) / 1000,       # duration
+				"null_event.wav",                           # stim_file
+				"n/a",                                      # response
+				"n/a",                                      # key
+				"n/a",                                      # press time
+				"n/a"                                       # RT
 			))
+
+	silence_end = exp.clock.time
+	return silence_start, silence_end
 
 # 3. LOAD STIMULI -----------------------------------------------------------------------
 wav_filepaths = glob.glob(f'{params["AUDIO_DIRECTORY"]}/{params["AUDIOFILE_REGEX"]}')
@@ -411,7 +462,7 @@ for run in range(params["RUNS"]): # Runs == Blocks == Functional Acquisitions
 	nw = datetime.now()
 	ts = int(nw.timestamp())
 	event_output = io.OutputFile(suffix = sesh, directory = f'bids_output')
-	event_output.write("onset;duration;stim_file;response;key\n")
+	event_output.write("onset;duration;stim_file;response;key;press_time;response_time\n")
 	run_performance = {"H": 0, "M": 0, "CR": 0, "FA": 0}
 	canvas.present()
 
@@ -423,7 +474,7 @@ for run in range(params["RUNS"]): # Runs == Blocks == Functional Acquisitions
 	run_start_time = exp.clock.time
 
 	# Wait for 4 's' keys from the scanner to synchronize scanner & script onsets.
-	keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s]); 
+	keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
 	keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
 
 	# Loop through the trials
@@ -432,12 +483,14 @@ for run in range(params["RUNS"]): # Runs == Blocks == Functional Acquisitions
 		# Refresh screen
 		canvas.present()
 
+		# Check if quit key is pressed
+		keyboard.check(keys=[misc.constants.K_y])
+
 		if start_with_sound:
 
 			# Sound part
 			sounds_in_sequence = []
-			t1 = exp.clock.time 
-			play_sounds(soundtrack[loop],
+			t1, t2 = play_sounds(soundtrack[loop],
 						params["SOUND_DURATION"],
 						exp,
 						canvas,
@@ -447,54 +500,53 @@ for run in range(params["RUNS"]): # Runs == Blocks == Functional Acquisitions
 						keyboard,
 						params["DETECTION_SYMBOL"],
 						event_output)
-			t2 = exp.clock.time
 
 			# Refresh the screen
 			canvas.present()
 
 			# Silent part
-			t3 = exp.clock.time;
-			play_silence(silence,
-						 params["SOUND_DURATION"],
-						 exp, 
-						 params["SOUNDS_PER_SEQUENCE"],
-						 keyboard,
-						 params["DETECTION_SYMBOL"],
-						 event_output)
-			t4 = exp.clock.time
+			t3, t4 = play_silence(silence,
+						params["SOUND_DURATION"],
+						exp,
+						params["SOUNDS_PER_SEQUENCE"],
+						keyboard,
+						params["DETECTION_SYMBOL"],
+						event_output)
 			print("SOUND FIRST:"); compute_durations(params, t1, t2, True); compute_durations(params, t3, t4, True)
 
+			# Refresh the screen
+			canvas.present()
+			
 		else:
 			# Silent part
-			t5 = exp.clock.time
-			play_silence(silence,
-						 params["SOUND_DURATION"],
-						 exp,
-						 params["SOUNDS_PER_SEQUENCE"],
-						 keyboard,
-						 params["DETECTION_SYMBOL"],
-						 event_output)
-			t6 = exp.clock.time
+			t5, t6 = play_silence(silence,
+						params["SOUND_DURATION"],
+						exp,
+						params["SOUNDS_PER_SEQUENCE"],
+						keyboard,
+						params["DETECTION_SYMBOL"],
+						event_output)
 
 			# Refresh the screen
 			canvas.present()
 
 			# Sound part
 			sounds_in_sequence = []
-			t7 = exp.clock.time
-			play_sounds(soundtrack[loop],
+			t7, t8 = play_sounds(soundtrack[loop],
 						params["SOUND_DURATION"],
 						exp,
-						canvas, 
+						canvas,
 						fix_cross,
 						correct,
 						wrong,
 						keyboard,
 						params["DETECTION_SYMBOL"],
 						event_output)
-			t8 = exp.clock.time
 			print("SILENCE FIRST:"); compute_durations(params, t5, t6, True); compute_durations(params, t7, t8, True)
-
+			
+			# Refresh the screen
+			canvas.present()
+		
 		# Update the count
 		loop += 1
 
@@ -511,7 +563,7 @@ for run in range(params["RUNS"]): # Runs == Blocks == Functional Acquisitions
 	
 	# Give encouragement and perfromance update on all runs except the last one.
 	if run + 1 < params["RUNS"]:
-		performance = f'Correct: {run_performance["H"]}, Wrong: {run_performance["FA"]}'
+		performance = f'Correct: {run_performance["H"]}, Wrong: {run_performance["FA"] + run_performance["M"]}'
 		progress    = f'Runs completed: {run+1}/{params["RUNS"]}'
 		rest = stimuli.TextScreen(
 			params["REST_HEADING"], 

@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 # Time-stamp: <04-02-2026 m.utrosa@bcbl.eu>
+# Script for Expyriment version 1.0.0
 
 # 0. PREPARATION ------------------------------------------------------------------------
 import numpy as np
@@ -44,7 +45,7 @@ params = {
 	"FIXATION_CROSS_WIDTH"    : 6,
 
 	"HEADING_SIZE" : 30, 
-	"TEXT_SIZE"    : 20,
+	"TEXT_SIZE"    : 25,
 	"INTRO_HEADING"   : "INSTRUCTIONS",
 	"INTRO_TEXT" 	  : f"You will hear sequences of different sounds, separated by longer periods of silence."
 						 "\n\nAt times, some sounds will play twice in a row. "
@@ -149,27 +150,27 @@ def create_soundtrack(sound_strata, sequence_len, rep_prob, sequence_no):
 
 	return sequences
 
-# def compute_durations(pars, clock_start, clock_end, verbose = True):
-# 	'''
-# 	Computes the predicted and actual durations of sound or silence parts in trials.
+def compute_durations(pars, clock_start, clock_end, verbose = True):
+	'''
+	Computes the predicted and actual durations of sound or silence parts in trials.
 
-# 	Parameters:
-# 	- pars: A dictionary, containing all user-defined parameters.
-# 	- clock_start: Start time given by the Expyriment's clock.
-# 	- clock_end: Start time given by the Expyriment's clock.
-# 	- verbose: Prints the computed durations in the terminal when True.
+	Parameters:
+	- pars: A dictionary, containing all user-defined parameters.
+	- clock_start: Start time given by the Expyriment's clock.
+	- clock_end: Start time given by the Expyriment's clock.
+	- verbose: Prints the computed durations in the terminal when True.
 
-# 	Returns:
-# 	- dur_predicted: The predicted trial duration, which is calculated from the user-defined audio parameters.
-# 	- dur_actual: The actual trial duration, which is calculated from times given by Expyriment's clock.
-# 	'''
-# 	dur_predicted = pars['SOUNDS_PER_SEQUENCE'] * pars['SOUND_DURATION']
-# 	dur_actual 	  = clock_end - clock_start
+	Returns:
+	- dur_predicted: The predicted trial duration, which is calculated from the user-defined audio parameters.
+	- dur_actual: The actual trial duration, which is calculated from times given by Expyriment's clock.
+	'''
+	dur_predicted = pars['SOUNDS_PER_SEQUENCE'] * pars['SOUND_DURATION']
+	dur_actual 	  = clock_end - clock_start
 
-# 	if verbose:
-# 		print(f'Predicted duration: {dur_predicted} msec. Actual duration: {dur_actual} msec.')
+	if verbose:
+		print(f'Predicted duration: {dur_predicted} msec. Actual duration: {dur_actual} msec.')
 
-# 	return (dur_predicted, dur_actual)
+	return (dur_predicted, dur_actual)
 
 def give_feedback(current_sound, position_in_sequence, response, good, bad):
 	'''
@@ -230,7 +231,7 @@ def play_sounds(sequence, sound_duration, exp, canvas, fixation, correct, wrong,
 	- canvas: A class implementing a canvas stimulus in expyriment.
 	- fixation: A class implementing a general fixation cross in expyriment (white).
 	- correct: A class implementing fixation cross for correct responses (green/cyan).
-	- wrong: A class implementing fixation cross for correct responses (red/orange).	
+	- wrong: A class implementing fixation cross for incorrect responses (red/orange).	
 	- keyboard: A class implementing a keyboard input in expyriment.
 	- response_keys: A list of accepted keys for responding (depends on the chosen response pad).
 	- log_events_sound: A file containing information about events, following BIDS specification.
@@ -256,18 +257,18 @@ def play_sounds(sequence, sound_duration, exp, canvas, fixation, correct, wrong,
 
 		# Stamp audio start time and play
 		audio_start = exp.clock.time
-		sound_ID.play(maxtime = sound_duration, log_event_tag = True)
+		sound_ID.play(maxtime=sound_duration, log_event_tag=True)
 
 		key_ASCII_audio, key_log_entry = None, None
 
 		# Check for key presses while the sound is playing
-		while sound_ID.is_playing and sound_ID.time < (audio_start + sound_duration):
+		while sound_ID.is_playing and sound_ID.time < audio_start + sound_duration:
 
 			# Non-blocking function to check for pressed keys
 			keys = keyboard.read_out_buffered_keys()
 
-			# Key-press trials
-			if keys and keys[0] != 115: # 115 is s from scanner sync box
+			# ------ Key-press trials ------ 
+			if keys and keys[0] != 115: # 115 is "s" from scanner sync box
 				press_time = exp.clock.time
 				key_ASCII_audio = keys[0] # If multiple, we take the first key
 
@@ -277,23 +278,23 @@ def play_sounds(sequence, sound_duration, exp, canvas, fixation, correct, wrong,
 																   key_ASCII_audio,
 																   correct,
 																   wrong)
+				
 				# Logging
 				if key_ASCII_audio is not None:
-
 					key_log_entry = {
-						"onset": np.abs(audio_start - run_start_time) / 1000,
-						"duration": sound_duration / 1000, # dummy duration
-						"stim_file": cs.split("stimuli/")[1],
-						"response": perf_code,
-						"key": chr(key_ASCII_audio),
+						"onset":      np.abs(audio_start - run_start_time) / 1000,
+						"duration":   sound_duration / 1000, # dummy duration
+						"stim_file":  cs.split("stimuli/")[1],
+						"response":   perf_code,
+						"key":        chr(key_ASCII_audio),
 						"press_time": np.abs(press_time - run_start_time) / 1000,
-						"RT": np.abs(press_time - audio_start) / 1000
+						"RT":         np.abs(press_time - audio_start) / 1000
 					}
 
 		# After the sound has stopped playing
 		audio_end = exp.clock.time
 
-		# Correct the sound duration for key trials
+		# Correct sound duration for key trials
 		if key_log_entry is not None:
 			key_log_entry["duration"] = np.abs(audio_end - audio_start) / 1000
 			log_events_sound.write(log_format_fStr.format(
@@ -306,7 +307,7 @@ def play_sounds(sequence, sound_duration, exp, canvas, fixation, correct, wrong,
 												key_log_entry["RT"]
 									))
 
-		# No-key trials	
+		# ------ No-key trials ------ 	
 		if not key_ASCII_audio:
 			
 			# Show feedback
@@ -315,22 +316,23 @@ def play_sounds(sequence, sound_duration, exp, canvas, fixation, correct, wrong,
 															   key_ASCII_audio,
 															   correct,
 															   wrong)
+			
 			# Logging
 			log_events_sound.write(log_format_NaNs.format(
 				np.abs(run_start_time - audio_start) / 1000, # onset
-				np.abs(audio_end - audio_start) / 1000,  	 # duration
-				cs.split("stimuli/")[1],  			  		 # stim_file
-				perf_code, 							  		 # response
-				"n/a", 								  		 # key
-				"n/a",								  		 # press time
-				"n/a"								  		 # RT
+				np.abs(audio_end - audio_start) / 1000,      # duration
+				cs.split("stimuli/")[1],                     # stim_file
+				perf_code,                                   # response
+				"n/a",                                       # key
+				"n/a",                                       # press time
+				"n/a"                                        # RT
 			))
 		
 		# Update feedback tracking and sequence record
 		if fs:
 			feedback_shown = count
 
-		# Update sounds in sequence for correct feedback.
+		# Update sounds in sequence for correct feedback
 		sounds_in_sequence.append(cs)
 
 	sounds_end = exp.clock.time
@@ -366,18 +368,18 @@ def play_silence(null_sound, sound_duration, exp, null_number, keyboard, respons
 
 		# Stamp audio start time and play
 		null_start = exp.clock.time
-		null_sound.play(maxtime = sound_duration, log_event_tag = True)
+		null_sound.play(maxtime=sound_duration, log_event_tag=True)
 
 		key_ASCII_silence, key_log_entry = None, None
 
-		# Check for key presses while the sound is playieng
-		while null_sound.is_playing and null_sound.time < (null_start + sound_duration):
+		# Check for key presses while the sound is playing
+		while null_sound.is_playing and null_sound.time < null_start + sound_duration:
 
 			# Non-blocking function to check for pressed keys
 			keys = keyboard.read_out_buffered_keys()
 
-			# Key-press trials
-			if keys and keys[0] != 115: # 115 is s from scanner sync box
+			# ------ Key-press trials ------ 
+			if keys and keys[0] != 115: # 115 is "s" from scanner sync box
 				press_time = exp.clock.time
 				key_ASCII_silence = keys[0] # If multiple, we take the first key
 
@@ -409,18 +411,16 @@ def play_silence(null_sound, sound_duration, exp, null_number, keyboard, respons
 												key_log_entry["RT"]
 									))
 
-		# No-key trials
+		# ------ No-key trials ------ 
 		if not key_ASCII_silence:
-
-			# Logging
 			log_events_null.write(log_format_NaNs.format(
 				np.abs(run_start_time - null_start) / 1000, # onset
-				np.abs(null_end - null_start) / 1000,		# duration
-				"null_event.wav",  					  		# stim_file
-				"n/a",			         			  		# response
-				"n/a",   							  		# key
-				"n/a",								  		# press time
-				"n/a"								  		# RT
+				np.abs(null_end - null_start) / 1000,       # duration
+				"null_event.wav",                           # stim_file
+				"n/a",                                      # response
+				"n/a",                                      # key
+				"n/a",                                      # press time
+				"n/a"                                       # RT
 			))
 	
 	silence_end = exp.clock.time
@@ -506,6 +506,9 @@ for run in range(params["RUNS"]): # Runs == Blocks == Functional Acquisitions
 	# Loop through the trials
 	for trial in range(params["NO_TRIALS"]):
 
+		# Refresh screen
+		canvas.present()
+
 		# Check if quit key is pressed
 		keyboard.check(keys=[misc.constants.K_y])
 
@@ -529,13 +532,13 @@ for run in range(params["RUNS"]): # Runs == Blocks == Functional Acquisitions
 
 			# Silent part
 			t3, t4 = play_silence(silence,
-						 params["SOUND_DURATION"],
-						 exp,
-						 params["SOUNDS_PER_SEQUENCE"],
-						 keyboard,
-						 params["DETECTION_SYMBOL"],
-						 event_output)
-			print("SOUND FIRST")
+						params["SOUND_DURATION"],
+						exp,
+						params["SOUNDS_PER_SEQUENCE"],
+						keyboard,
+						params["DETECTION_SYMBOL"],
+						event_output)
+			print("SOUND FIRST:"); compute_durations(params, t1, t2, True); compute_durations(params, t3, t4, True)
 			
 			# Refresh the screen
 			canvas.present()
@@ -543,12 +546,12 @@ for run in range(params["RUNS"]): # Runs == Blocks == Functional Acquisitions
 		else:
 			# Silent part
 			t5, t6 = play_silence(silence,
-						 params["SOUND_DURATION"],
-						 exp,
-						 params["SOUNDS_PER_SEQUENCE"],
-						 keyboard,
-						 params["DETECTION_SYMBOL"],
-						 event_output)
+						params["SOUND_DURATION"],
+						exp,
+						params["SOUNDS_PER_SEQUENCE"],
+						keyboard,
+						params["DETECTION_SYMBOL"],
+						event_output)
 
 			# Refresh the screen
 			canvas.present()
@@ -558,14 +561,14 @@ for run in range(params["RUNS"]): # Runs == Blocks == Functional Acquisitions
 			t7, t8 = play_sounds(soundtrack[loop],
 						params["SOUND_DURATION"],
 						exp,
-						canvas, 
+						canvas,
 						fix_cross,
 						correct,
 						wrong,
 						keyboard,
 						params["DETECTION_SYMBOL"],
 						event_output)
-			print("SILENCE FIRST")
+			print("SILENCE FIRST:"); compute_durations(params, t5, t6, True); compute_durations(params, t7, t8, True)
 
 			# Refresh the screen
 			canvas.present()
