@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-# Time-stamp: <2026-04-02 m.utrosa@bcbl.eu>
+# Time-stamp: <2026-04-11 m.utrosa@bcbl.eu>
 # TODO: replace frequency dev in params with naturalistic range (musical notes or soundscape freq.)
 
 """
@@ -131,7 +131,7 @@ def create_experimental_sessions(params, sesID, save_csv=False, MAX_BLOCK_DURATI
 	"""
 	
 	# 01. GENERATE INDEPENDENT VARIABLES: Timing deviation size and location ----------------------
-	# Create negative values of tone's timing deviation, including a "negative" zero.
+	# Create negative values of tone's timing deviation. If applicable, includes a "negative" zero.
 	DEV_pos = np.array(params["DEVS"])
 	DEV_neg = -DEV_pos
 
@@ -339,10 +339,13 @@ def create_experimental_sessions(params, sesID, save_csv=False, MAX_BLOCK_DURATI
 		# Append the final structure.
 		COMBOS_ALL_DEV.append(trial)
 
+	# Randomly shuffle sound trials.
+	random.shuffle(COMBOS_ALL_DEV)
+
 	# 04. CREATE SILENT TRIALS and SPLIT INTO BLOCKS ----------------------------------------------
 	# Calculate the number of silent trials needed per block.
 	silent_base   = NO_SILENT_TRIALS // params["NO_BLOCKS"]
-	silent_rest   = silent_base % params["NO_BLOCKS"]
+	silent_rest   = NO_SILENT_TRIALS % params["NO_BLOCKS"]
 	silent_trials = [silent_base + 1] * silent_rest + [silent_base] * (params["NO_BLOCKS"] - silent_rest)
 	
 	# Print update on how silent trials are split into blocks.
@@ -353,7 +356,7 @@ def create_experimental_sessions(params, sesID, save_csv=False, MAX_BLOCK_DURATI
 	
 	# Calculate the number of sound trials needed per block.
 	sound_base   = NO_SOUND_TRIALS // params["NO_BLOCKS"]
-	sound_rest   = sound_base % params["NO_BLOCKS"]
+	sound_rest   = NO_SOUND_TRIALS % params["NO_BLOCKS"]
 	sound_trials = [sound_base + 1] * sound_rest + [sound_base] * (params["NO_BLOCKS"] - sound_rest)
 	
 	# Print update on how sound trials are split into blocks.
@@ -369,10 +372,15 @@ def create_experimental_sessions(params, sesID, save_csv=False, MAX_BLOCK_DURATI
 	
 	# Print update on the how all trials are split into blocks.
 	print(
-	f"\n\nThere will be a total of {block_base} trials per block in the experiment. "
+	f"\nThere will be a total of {block_base} trials per block in the experiment. "
 	f"\n{[f'Block {idx + 1}: {b}' for idx, b in enumerate(blocks)]}."
 	)
 
+	# Verify your math
+	for i in range(params["NO_BLOCKS"]):
+		if silent_trials[i] + sound_trials[i] != blocks[i]:
+			raise ValueError(f"Block {i + 1} has an issue.")
+	
 	# Create one empty/silent trial: null sound with imperceptible frequency.
 	empty_trial = {
 		'dev': None,
@@ -388,54 +396,60 @@ def create_experimental_sessions(params, sesID, save_csv=False, MAX_BLOCK_DURATI
 		'freq_dev_no': None
 	}
 
-	# Insert "silent_base" silent trials after every block of "sound_base" sound trials.
+	# Add silent trials randomly
 	block_start_idx = 0
-	for no_b, no_slt, no_sdt in zip(blocks, silent_trials, sound_trials):
+	for block_size, no_silent_trials, no_sound_trials in zip(blocks, silent_trials, sound_trials):
+
+		# Calculate end-exclusive index of the sound block
+		sound_block_end_idx = block_start_idx + no_sound_trials
+		block_end_idx = block_start_idx + no_sound_trials + no_silent_trials
+
+		last_available  = block_end_idx - 1   # second-to-last
+		first_available = block_start_idx + 1 # second
+
+		# Keep track of chosen & forbidden indices
+		not_available = []
+		idx_chosen = []
+
+		for e_trial in range(no_silent_trials):
+			available = list(range(first_available, last_available))
 		
-		# Create a list of empty trials of len(number of silent trials).
-		empty_trials = [empty_trial for i in range(no_slt)]
+			# Remove taken & forbidden indices out of the available ones
+			if e_trial != 0:
+				for not_avail in not_available:
+					if not_avail in available:
+						available.remove(not_avail)
+						if not available:
+							raise ValueError("No valid indices left (constraints too tight)")
 
-		# Add empty trials after the last sound trial.
-		sound_block_end_idx = block_start_idx + no_sdt
-		COMBOS_ALL_DEV[sound_block_end_idx:sound_block_end_idx] = empty_trials
-
-		# Print update
-		print(f"{len(empty_trials)} empty trials inserted at idx. {sound_block_end_idx}")
-		
-		# Update block indices
-		block_start_idx = sound_block_end_idx + no_slt
-
-	# Shuffle signal and no-signal trials in each block.
-	## Rule 1: Empty trial should never occur as the first trial of the block.
-	## Rule 2: There should never be two or more empty trials in a row.
-	b_start_idx = 0
-	for b_idx in blocks:
-		b_end_idx = b_start_idx + b_idx
-		block_trials = COMBOS_ALL_DEV[b_start_idx:b_end_idx]
-		b_start_idx = b_end_idx
-
-		# Shuffle until the rules are satisfied
-		resample = True
-		while resample:
-
-			# Shuffle the entire block randomly
-			random.shuffle(block_trials)
-
-			# Rule 1: The "dev" of the first trial must not be None.
-			is_first_empty = (block_trials[0].get('dev') is None)
+			# Chose from allowed indices
+			choice = random.choice(available) 
 			
-			# Rule 2: No two consecutive trials can have "dev" as None.
-			has_consecutive_empty = any(
-				(block_trials[bt].get('dev') is None) and (block_trials[bt-1].get('dev') is None)
-				for bt in range(1, len(block_trials))
-			)
+			# Empty trials cannot occur in a row
+			choice_after  = choice + 1
+			choice_before = choice - 1
+			
+			# Keep track
+			idx_chosen.append(choice)
+			not_available.append(choice)
+			not_available.append(choice_after)
+			not_available.append(choice_before)
 
-			# If either rule is violated, resample (shuffle again).
-			resample = is_first_empty or has_consecutive_empty
+		# Add empty trials in reverse
+		for idx_c in sorted(idx_chosen):
+			COMBOS_ALL_DEV.insert(idx_c, empty_trial.copy())
 
-		# Assign the valid shuffled trials back to the original list
-		COMBOS_ALL_DEV[b_start_idx - b_idx : b_end_idx] = block_trials
+		# Verify block starts correctly
+		if COMBOS_ALL_DEV[block_start_idx].get("dev") is None:
+			raise ValueError("The block starts with a silent trial.")
 		
+		# Verify that the block ends with a sound trial.
+		if COMBOS_ALL_DEV[block_end_idx - 1].get("dev") is None:
+			raise ValueError("The block ends with a silent trial.")
+		
+		# Update count for next block
+		block_start_idx = sound_block_end_idx + no_silent_trials
+
 	# Split trials into blocks
 	BLOCK_COMBOS = []
 	for block_no, block in enumerate(blocks):
@@ -463,7 +477,7 @@ def create_experimental_sessions(params, sesID, save_csv=False, MAX_BLOCK_DURATI
 		trial_durs.append(t_dur)
 	
 	# Get duration of blocks
-	block_durations = {1: 0, 2: 0, 3: 0, 4: 0}
+	block_durations = {b: 0 for b in set(cb["block_no"] for cb in BLOCK_COMBOS)}
 	for b, duration in zip(BLOCK_COMBOS, trial_durs):
 		b_no = b["block_no"]
 		block_durations[b_no] += duration
@@ -513,16 +527,17 @@ def create_experimental_sessions(params, sesID, save_csv=False, MAX_BLOCK_DURATI
 		f_diff_abs = []
 		std_freq = series.base_freq
 
-		for i in series.freq_dev:
-			if i:
-				diff_abs = np.abs(std_freq - i)
-				f_diff_abs.append(int(diff_abs))
+		if series.freq_dev:
+			for i in series.freq_dev:
+				if i:
+					diff_abs = np.abs(std_freq - i)
+					f_diff_abs.append(int(diff_abs))
 
-				if i > std_freq: # higher devs
-					diff = diff_abs
-				else: # lower devs
-					diff = -diff_abs
-				f_diff.append(int(diff))
+					if i > std_freq: # higher devs
+						diff = diff_abs
+					else: # lower devs
+						diff = -diff_abs
+					f_diff.append(int(diff))
 	
 		df.at[row, 'freq_diff'] = f_diff if f_diff else [False]
 		df.at[row, 'freq_diff_abs'] = f_diff_abs if f_diff_abs else [False]
@@ -539,6 +554,7 @@ def create_experimental_sessions(params, sesID, save_csv=False, MAX_BLOCK_DURATI
 
 # 02. EXAMPLE USAGE  & SIMULATION OF EXPERIMENTAL SESSIONS ----------------------------------------
 if __name__ == "__main__":
+	freq_int = [192, 220, 392, 440] # G3, A3, G4, A4
 	params = {
 	
 	"OUT_PATH" : "/home/mutrosa/Documents/projects/auditory_paradigms/detection_accuracy/trials",
@@ -553,8 +569,8 @@ if __name__ == "__main__":
 
 	# If kept constant, the length of tone sequences is the same for each experimental session.
 	# If not, length of tone sequence is chosen randomly from the range and kept constant across sesions.
-	"MIN_TONES"     : 7,    # Min. no. of tones in a single sequence
-	"MAX_TONES"     : 7,    # Max. no. of tones in a single sequence
+	"MIN_TONES" : 7,    # Min. no. of tones in a single sequence
+	"MAX_TONES" : 7,    # Max. no. of tones in a single sequence
 
 	# c. Inter Stimulus Interval is the time between presentation of two sequential tones.
 	"ISI_MIN"  : 700,        # Min. duration of ISI 
@@ -563,24 +579,24 @@ if __name__ == "__main__":
 	
 	# d. Timing deviants
 	"DEVS"    : [0, 4, 8, 13, 19, 27, 36, 48, 63, 80, 100, 125], # Absolute timing deviants in msec
-	"DEV_REP" : 4,	   # How many times should each deviation repeat across the exp. session?
+	"DEV_REP" : 4,	# How many times should each deviation repeat across the exp. session?
 
 	"FIRST_DEV_LOC" : 4,  # The first tone that can be displaced:
 						  # e.g.: if you want the first few tones to be timing standards
 	"LAST_DEV_LOC"  : 6,  # The last tone to be displaced timing-wise
 
 	# c. Frequency deviants
-	"FREQS" : [440, 185, 392, 880, 98],	 # Absolute frequency deviants in Hz ## TODO: within 300Hz
+	"FREQS" : freq_int, # Absolute frequency deviants in Hz
 	"FREQ_REP_MAX" : 3, # How many times max can frequency deviations occur per trial?
 						# If 3, it means there could be 0, 1, 2, or 3 deviants in one trial
 						# That's good, because we have 4 buttons in the MRI
 
 	"FIRST_FREQ_LOC" : 2,  # The first tone that can be displaced frequency-wise
-						   # Easier to count if the first 3 tones are frequency standards
+						   # Easier to count if the first 2 tones are frequency standards
 
 	"LAST_FREQ_LOC"  : 7,  # The last tone to be displaced frequency-wise
 	}
 
 	for session in range(1):
 		session = session + 1
-		create_experimental_sessions(params, session, save_csv=False)
+		create_experimental_sessions(params, session, save_csv=True)
