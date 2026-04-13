@@ -172,9 +172,9 @@ class SoundGen:
 
                     # Generate frequency deviant tone at given locations
                     if trial.freq_dev_no != 0:
-
+                        freq_loc = sorted(trial.freq_loc)
                         if freq_dev_count < trial.freq_dev_no:
-                            freq_loc = trial.freq_loc[freq_dev_count]
+                            freq_loc = freq_loc[freq_dev_count]
                         else:
                             freq_loc = False
 
