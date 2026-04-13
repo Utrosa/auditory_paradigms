@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-# Time-stamp: <31-03-2026, m.utrosa@bcbl.eu>
+# Time-stamp: <13-04-2026, m.utrosa@bcbl.eu>
 '''
 Main experimental script
 - runs localizer
@@ -13,11 +13,10 @@ Local setup: All localizer sounds must be in "Stimuli" folder. Sounds need "s3" 
 # 00. PREPARATION ------------------------------------------------------------------------
 import ast
 import random
-import glob # TODO: replace with pathlib
 import numpy as np
-from pathlib import Path # instead of glob as in the OJ localizer
 import pandas as pd
 import sounddevice as sd
+from pathlib import Path
 from datetime import datetime 
 from expyriment import design, control, stimuli, misc, io
 
@@ -25,7 +24,7 @@ from expyriment import design, control, stimuli, misc, io
 import create_soundtrack_soundgen as sg
 
 # TODO: Import custom-made functions. The issue is that they don't work now.
-# They functions rely on expyriment classes such as canvas ... debug!
+# because the functions rely on expyriment classes such as canvas ... debug!
 # import localizer
 
 # Set mode
@@ -50,7 +49,9 @@ log_loc_format_NaNs  = "{0:.3f};{1:.3f};{2};{3};{4};{5};{6}\n"
 #TODO: Specify BIDS-formatted EventFiles for TASK
 
 # 01. PARAMETERS -------------------------------------------------------------------------
-sesID = 14 # CHECK: randomly sample session number from "verified" session options
+sesID = 8
+localizer_on = True
+main_task_on = True
 params = {
 
     # Directories
@@ -83,7 +84,7 @@ params = {
     # Audio for task
     "TONE_LOUDNESS"   : 70,     # dB SPL
     "TONE_DURATION"   : 50,     # msec
-    "NUM_HARMONICS"   : 10,      # Number of harmonics
+    "NUM_HARMONICS"   : 10,     # Number of harmonics
     "HARMONIC_FACTOR" : 0.8,    # Harmonic amplitude decay factor
     "MAX_AMPLITUDE"   : 1.14,   # Defined through a simulation
     "SAMPLE_RATE"     : 48000,  # Hz
@@ -347,7 +348,7 @@ def play_sounds(sequence, sound_duration, exp, canvas, fixation, correct, wrong,
                     key_log_entry = {
                         "onset":      np.abs(audio_start - run_start_time) / 1000,
                         "duration":   sound_duration / 1000, # dummy duration
-                        "stim_file":  cs.split("stimuli/")[1],
+                        "stim_file":  cs.name,
                         "response":   perf_code,
                         "key":        chr(key_ASCII_audio),
                         "press_time": np.abs(press_time - run_start_time) / 1000,
@@ -384,7 +385,7 @@ def play_sounds(sequence, sound_duration, exp, canvas, fixation, correct, wrong,
             log_events_sound.write(log_loc_format_NaNs.format(
                 np.abs(run_start_time - audio_start) / 1000, # onset
                 np.abs(audio_end - audio_start) / 1000,      # duration
-                cs.split("stimuli/")[1],                     # stim_file
+                cs.name,                                     # stim_file
                 perf_code,                                   # response
                 "n/a",                                       # key
                 "n/a",                                       # press time
@@ -491,14 +492,19 @@ def play_silence(null_sound, sound_duration, exp, null_number, keyboard, respons
 
 # 03. LOAD STIMULI -----------------------------------------------------------------------
 # Load audio stimuli for localizer
-wav_filepaths = glob.glob(f'{params["AUDIO_ROOT"]}/{params["AUDIOFILE_REGEX"]}')
-sounds_all = ["stimuli" + file_1.split("stimuli", 1)[1] for file_1 in wav_filepaths if "s3" in file_1]
-random.shuffle(sounds_all)
-filename_silence = ["stimuli" + file_2.split("stimuli", 1)[1] for file_2 in wav_filepaths if "null" in file_2][0]
+audio_root    = Path(params["AUDIO_ROOT"])
+wav_filepaths = list(Path(params["AUDIO_ROOT"]).glob(params["AUDIOFILE_REGEX"]))
+
+# Rule: sounds include "s3" in filename & silences "null".
+filenames_sounds = [file_1 for file_1 in wav_filepaths if "s3" in str(file_1)]
+filenames_null   = [file_2 for file_2 in wav_filepaths if "null" in str(file_2)][0]
+
+# Shuffle the sounds
+random.shuffle(filenames_sounds)
 
 # Load the trial parameters from csv for main task
 homePath  = Path(params["PROJECT_ROOT"])
-paramPath = homePath / f"exp_parameter_combo_ses-{sesID:003d}.csv"
+paramPath = homePath / f"ses-{sesID:003d}_exp_parameter_combo.csv"
 df        = pd.read_csv(paramPath)
 no_blocks = len(df["block_no"].unique())
 
@@ -578,8 +584,8 @@ wrong     = stimuli.FixCross(size = params["FIXATION_CROSS_SIZE"], position = pa
 correct   = stimuli.FixCross(size = params["FIXATION_CROSS_SIZE"], position = params["FIXATION_CROSS_POSITION"], line_width = params["FIXATION_CROSS_WIDTH"], colour = params["CORRECT"])
 
 # Get sounds for localizer
-silence = stimuli.Audio(filename_silence)
-sounds  = {filename: stimuli.Audio(filename) for filename in sounds_all}
+silence = stimuli.Audio(str(filename_null))
+sounds  = {filename: stimuli.Audio(str(filename)) for filename in filenames_sounds}
 
 # Get sounds for main task
 ## Initialize the sound generation class
@@ -612,183 +618,185 @@ soundtrack = create_soundtrack(
 control.start(skip_ready_screen=True)
 
 ### ------------------ LOCALIZER  ------------------ ##
-# Decide randomly to start with silence or sound.
-start_with_sound = random.choice([True, False])
+if localizer_on:
+    # Decide randomly to start with silence or sound.
+    start_with_sound = random.choice([True, False])
 
-# Present instructions for the repetition detection task.
-# Wait a minimal time needed to read the instructions.
-instructions_loc.present()
-exp.clock.wait(params["WAIT_TIME"])
-keyboard.wait(keys=params['DETECTION_SYMBOL'])
+    # Present instructions for the repetition detection task.
+    # Wait a minimal time needed to read the instructions.
+    instructions_loc.present()
+    exp.clock.wait(params["WAIT_TIME"])
+    keyboard.wait(keys=params['DETECTION_SYMBOL'])
 
-# Clear and present a blank screen.
-instructions_loc.clear_surface()
-blank_canvas.present()
+    # Clear and present a blank screen.
+    instructions_loc.clear_surface()
+    blank_canvas.present()
 
-loop = 0
-# Start the structure of the experiment
-# for run in range(params["LOC_REP"]):
+    loop = 0
+    # Start the structure of the experiment
+    for run in range(params["LOC_REP"]):
 
-#     # Initialize the log with unique timestamps.
-#     nw = datetime.now()
-#     ts = int(nw.timestamp())
-#     event_output = io.OutputFile(suffix = sesh, directory = f'bids_output')
-#     event_output.write("onset;duration;stim_file;response;key;press_time;response_time\n")
-#     run_performance = {"H": 0, "M": 0, "CR": 0, "FA": 0}
-#     canvas.present()
+        # Initialize the log with unique timestamps.
+        nw = datetime.now()
+        ts = int(nw.timestamp())
+        event_output = io.OutputFile(suffix = sesh, directory = f'bids_output')
+        event_output.write("onset;duration;stim_file;response;key;press_time;response_time\n")
+        run_performance = {"H": 0, "M": 0, "CR": 0, "FA": 0}
+        canvas.present()
 
-#     # Wait for onset of functional sequence
-#     keyboard.wait(keys=[misc.constants.K_s])
-#     canvas.present()
+        # Wait for onset of functional sequence
+        keyboard.wait(keys=[misc.constants.K_s])
+        canvas.present()
 
-#     # Mark the start of the functional sequence
-#     run_start_time = exp.clock.time
+        # Mark the start of the functional sequence
+        run_start_time = exp.clock.time
 
-#     # Wait for 4 's' keys from the scanner to synchronize scanner & script onsets.
-#     keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
-#     keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
+        # Wait for 4 's' keys from the scanner to synchronize scanner & script onsets.
+        keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
+        keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
 
-#     # Loop through the trials
-#     for trial in range(params["LOC_TRIALS"]):
+        # Loop through the trials
+        for trial in range(params["LOC_TRIALS"]):
 
-#         # Refresh screen
-#         canvas.present()
+            # Refresh screen
+            canvas.present()
 
-#         # Check if quit key is pressed
-#         keyboard.check(keys=[misc.constants.K_y])
+            # Check if quit key is pressed
+            keyboard.check(keys=[misc.constants.K_y])
 
-#         if start_with_sound:
+            if start_with_sound:
 
-#             # Sound part
-#             sounds_in_sequence = []
-#             t1, t2 = play_sounds(soundtrack[loop],
-#                         params["SOUND_DURATION"],
-#                         exp,
-#                         canvas,
-#                         fix_cross,
-#                         correct,
-#                         wrong,
-#                         keyboard,
-#                         params["DETECTION_SYMBOL"],
-#                         event_output)
+                # Sound part
+                sounds_in_sequence = []
+                t1, t2 = play_sounds(soundtrack[loop],
+                            params["SOUND_DURATION"],
+                            exp,
+                            canvas,
+                            fix_cross,
+                            correct,
+                            wrong,
+                            keyboard,
+                            params["DETECTION_SYMBOL"],
+                            event_output)
 
-#             # Refresh the screen
-#             canvas.present()
+                # Refresh the screen
+                canvas.present()
 
-#             # Silent part
-#             t3, t4 = play_silence(silence,
-#                         params["SOUND_DURATION"],
-#                         exp,
-#                         params["SOUNDS_PER_SEQUENCE"],
-#                         keyboard,
-#                         params["DETECTION_SYMBOL"],
-#                         event_output)
-#             print("SOUND FIRST:"); compute_durations(params, t1, t2, True); compute_durations(params, t3, t4, True)
-            
-#             # Refresh the screen
-#             canvas.present()
+                # Silent part
+                t3, t4 = play_silence(silence,
+                            params["SOUND_DURATION"],
+                            exp,
+                            params["SOUNDS_PER_SEQUENCE"],
+                            keyboard,
+                            params["DETECTION_SYMBOL"],
+                            event_output)
+                print("SOUND FIRST:"); compute_durations(params, t1, t2, True); compute_durations(params, t3, t4, True)
+                
+                # Refresh the screen
+                canvas.present()
 
-#         else:
-#             # Silent part
-#             t5, t6 = play_silence(silence,
-#                         params["SOUND_DURATION"],
-#                         exp,
-#                         params["SOUNDS_PER_SEQUENCE"],
-#                         keyboard,
-#                         params["DETECTION_SYMBOL"],
-#                         event_output)
+            else:
+                # Silent part
+                t5, t6 = play_silence(silence,
+                            params["SOUND_DURATION"],
+                            exp,
+                            params["SOUNDS_PER_SEQUENCE"],
+                            keyboard,
+                            params["DETECTION_SYMBOL"],
+                            event_output)
 
-#             # Refresh the screen
-#             canvas.present()
+                # Refresh the screen
+                canvas.present()
 
-#             # Sound part
-#             sounds_in_sequence = []
-#             t7, t8 = play_sounds(soundtrack[loop],
-#                         params["SOUND_DURATION"],
-#                         exp,
-#                         canvas,
-#                         fix_cross,
-#                         correct,
-#                         wrong,
-#                         keyboard,
-#                         params["DETECTION_SYMBOL"],
-#                         event_output)
-#             print("SILENCE FIRST:"); compute_durations(params, t5, t6, True); compute_durations(params, t7, t8, True)
+                # Sound part
+                sounds_in_sequence = []
+                t7, t8 = play_sounds(soundtrack[loop],
+                            params["SOUND_DURATION"],
+                            exp,
+                            canvas,
+                            fix_cross,
+                            correct,
+                            wrong,
+                            keyboard,
+                            params["DETECTION_SYMBOL"],
+                            event_output)
+                print("SILENCE FIRST:"); compute_durations(params, t5, t6, True); compute_durations(params, t7, t8, True)
 
-#             # Refresh the screen
-#             canvas.present()
+                # Refresh the screen
+                canvas.present()
 
-#         # Update the count
-#         loop += 1
+            # Update the count
+            loop += 1
 
-#     # Save the log
-#     event_output.rename(f"sub-{exp.subject:02d}_ses-{sesh}_task-{exp.name}_ts-{ts}_events.tsv")
-#     event_output.save()
+        # Save the log
+        event_output.rename(f"sub-{exp.subject:02d}_ses-{sesh}_task-{exp.name}_ts-{ts}_events.tsv")
+        event_output.save()
 
-#     # The experiment ends before the MRI protocol. Inform the participant to keep calm and remain still.
-#     blank_canvas.present()
-#     scanner_text.present()
+        # The experiment ends before the MRI protocol. Inform the participant to keep calm and remain still.
+        blank_canvas.present()
+        scanner_text.present()
 
-#     # Wait for the MRI QU to end the run by pressing a key unavailable to the participant.
-#     keyboard.wait(keys = [misc.constants.K_e])
+        # Wait for the MRI QU to end the run by pressing a key unavailable to the participant.
+        keyboard.wait(keys = [misc.constants.K_e])
 
 ### ------------------ MAIN TASK  ------------------ ##
-# TODO: Rename output data for the main task
-# exp.data.rename(f"sub-{exp.subject:02d}_ses-{sesh}_task-{exp.name}_ts-{ts}.tsv")   
-# exp.events.rename(f"sub-{exp.subject:02d}_ses-{sesh}_task-{exp.name}_ts-{ts}.tsv") 
+if main_task_on:
+    # TODO: Rename output data for the main task
+    # exp.data.rename(f"sub-{exp.subject:02d}_ses-{sesh}_task-{exp.name}_ts-{ts}.tsv")   
+    # exp.events.rename(f"sub-{exp.subject:02d}_ses-{sesh}_task-{exp.name}_ts-{ts}.tsv") 
 
-# Present instructions for the counting task.
-# Wait a minimal time needed to read the instructions.
-instructions_task.present()
-exp.clock.wait(params["WAIT_TIME"])
-keyboard.wait(keys=params['DETECTION_SYMBOL'])
+    # # Present instructions for the counting task.
+    # # Wait a minimal time needed to read the instructions.
+    # instructions_task.present()
+    # exp.clock.wait(params["WAIT_TIME"])
+    # keyboard.wait(keys=params['DETECTION_SYMBOL'])
 
-# Clear and present a blank screen.
-instructions_task.clear_surface()
-blank_canvas.present()
+    # # Clear and present a blank screen.
+    # instructions_task.clear_surface()
+    # blank_canvas.present()
 
-# Wait for onset of the functional sequence for the main task
-keyboard.wait(keys=[misc.constants.K_s])
-canvas.present()
+    # # Wait for onset of the functional sequence for the main task
+    # keyboard.wait(keys=[misc.constants.K_s])
+    # canvas.present()
 
-# Mark the start of the functional sequence for the main task
-task_start_time = exp.clock.time
+    # # Mark the start of the functional sequence for the main task
+    # task_start_time = exp.clock.time
 
-# Wait for 4 's' keys from the scanner to synchronize scanner & script onsets.
-keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
-keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
+    # # Wait for 4 's' keys from the scanner to synchronize scanner & script onsets.
+    # keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
+    # keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
 
-# Play the soundtrack over the blocks
-for block in range(no_blocks):
+    # # Play the soundtrack over the blocks
+    # for block in range(no_blocks):
 
-    # Correct for zero-indexing
-    block_idx = block + 1
+    #     # Correct for zero-indexing
+    #     block_idx = block + 1
 
-    # Select only the part of the dataframe relevant for the current trial
-    df_block = df[df["block_no"] == block_idx]
+    #     # Select only the part of the dataframe relevant for the current trial
+    #     df_block = df[df["block_no"] == block_idx]
 
-    # Generate the soundtrack of the experimental session
-    for soundtrack in sound_gen.generate_soundtrack(
-       df_block,
-       params["MAX_AMPLITUDE"],
-       params["NUM_HARMONICS"], 
-       params["TONE_DURATION"], 
-       params["HARMONIC_FACTOR"],
-       params["TONE_LOUDNESS"]
-       ):
+    #     # Generate the soundtrack of the experimental session
+    #     for soundtrack in sound_gen.generate_soundtrack(
+    #        df_block,
+    #        params["MAX_AMPLITUDE"],
+    #        params["NUM_HARMONICS"], 
+    #        params["TONE_DURATION"], 
+    #        params["HARMONIC_FACTOR"],
+    #        params["TONE_LOUDNESS"]
+    #        ):
 
-        # Check if quit key is pressed during the trial
-        keyboard.check(keys=[misc.constants.K_ESCAPE])
+    #         # Check if quit key is pressed during the trial
+    #         keyboard.check(keys=[misc.constants.K_ESCAPE])
 
-        sd.play(soundtrack, samplerate = params["SAMPLE_RATE"])
+    #         sd.play(soundtrack, samplerate = params["SAMPLE_RATE"])
 
-        # Play the trial until the end
-        sd.wait()
+    #         # Play the trial until the end
+    #         sd.wait()
 
-    # At the end of each block, give time to rest (works as inter-block-interval)
-    if block != len(no_blocks) - 1:
-        rest_task.present()
-        keyboard.wait(keys=params['DETECTION_SYMBOL'])
+    #     # At the end of each block, give time to rest (works as inter-block-interval)
+    #     if block != len(no_blocks) - 1:
+    #         rest_task.present()
+    #         keyboard.wait(keys=params['DETECTION_SYMBOL'])
 
 goodbye_message.present()
 exp.clock.wait(params["WAIT_TIME"])

@@ -174,11 +174,11 @@ def plot_count(df, title, x_names, x_label, y_name, y_order, y_label, y_group=No
 # 03. CREATE FIGURES -----------------------------------------------------------------------------
 dataDir  = Path('/home/mutrosa/Documents/projects/auditory_paradigms/detection_accuracy/trials')
 
-for idx in range(94, 100):
+for idx in range(300, 350):
     i = idx + 1
 
     # Load the csv with trials
-    filename = f'exp_parameter_combo_ses-{i:003d}.csv'
+    filename = f'ses-{i:003d}_exp_parameter_combo.csv'
     df_raw = pd.read_csv(dataDir / filename)
 
     # Correct column data types: lists should not be strings
@@ -192,6 +192,48 @@ for idx in range(94, 100):
     df_trials = df_raw.copy()
     df_events = df_raw.explode(list_cols)
 
+    # Remove silent trials
+    df_trials.dropna(inplace=True)
+    df_events.dropna(inplace=True)
+
+    # ---------------------------------------------------------------------------------------------
+    # TIMING DEVIANTS POSITION
+    # How is the position of timing deviants distributed ?
+    # Use exploded dataframe (plot is on event-level, not trial-level)
+
+    # Negative vs Positive
+    params = ['base_freq', 'freq_diff', 'freq_dev', 'freq_dev_no']
+    order = sorted(df_events['dev'].unique())
+    plot_count(
+        df=df_events,
+        title=f"DISTRIBUTION OF TIMING DEVIANTS | SES-{i:003d}",
+        x_names=params,
+        x_label="Timing Deviants [msec]",
+        y_name='dev',
+        y_order=order,
+        y_label="Count",
+        save_as=f"plots/ses-{i:003d}_timeDev-dir.png",
+        show=False,
+        max_cols=7,
+        rect=(0.02, 0, 0.93, 0.98) # left, bottom, right, top
+    )
+
+    # Absolute
+    params = ['base_freq', 'freq_diff_abs', 'freq_dev', 'freq_dev_no']
+    plot_count(
+        df=df_events,
+        title=f"DISTRIBUTION OF TIMING DEVIANTS | SES-{i:003d}",
+        x_names=params,
+        x_label="Timing Deviants [msec]",
+        y_name='dev',
+        y_order=order,
+        y_label="Count",
+        save_as=f"plots/ses-{i:003d}_timeDev-abs.png",
+        show=False,
+        max_cols=7,
+        rect=(0.02, 0, 0.93, 0.98) # left, bottom, right, top
+    )
+
     # ---------------------------------------------------------------------------------------------
     # TIMING DEVIANCY | DEV LOC, BASE FREQ, FREQ DEV NUMBER
     # How are timing deviants distributed across single events that vary across trials?
@@ -200,10 +242,10 @@ for idx in range(94, 100):
     #       The distribution of DEV over DEV_LOC should be perfectly counterbalanced.
     #       If zero included, there's more values as we're counting for two deviations:
     #       positive and negative zero.
-    params = ["dev_loc", "base_freq", "freq_dev_no"]
+    # params = ["dev_loc", "base_freq", "freq_dev_no"]
 
     # Negative vs Positive
-    order = sorted(df_trials['dev'].unique())
+    # order = sorted(df_trials['dev'].unique())
     # plot_count(
     #     df=df_trials, 
     #     title=f"TIMING DEVIANCY | DEV LOC, BASE FREQ, FREQ DEV NO for SES-{i:003d}",
@@ -219,7 +261,7 @@ for idx in range(94, 100):
     # )
 
     # Absolute
-    order = sorted(df_trials['dev_abs'].unique())
+    # order = sorted(df_trials['dev_abs'].unique())
     # plot_count(
     #     df=df_trials, 
     #     title=f"TIMING DEVIANCY | DEV LOC, BASE FREQ, FREQ DEV NO for SES-{i:003d}",
@@ -240,8 +282,8 @@ for idx in range(94, 100):
     # Use exploded dataframe (plot is on event-level, not trial-level)
     
     # Negative vs Positive
-    params = ["base_freq", "freq_dev_no", "freq_loc", "dev", "dev_loc"]
-    order = sorted(df_events['freq_dev'].unique())
+    # params = ["base_freq", "freq_dev_no", "freq_loc", "dev", "dev_loc"]
+    # order = sorted(df_events['freq_dev'].unique())
     # plot_count(
     #     df=df_events, 
     #     title=f"FREQUENCY DEVIANCY | SES-{i:003d}",
@@ -257,7 +299,7 @@ for idx in range(94, 100):
     # )
 
     # Absolute
-    params = ["base_freq", "freq_dev_no", "freq_loc", "dev_abs", "dev_loc"]
+    # params = ["base_freq", "freq_dev_no", "freq_loc", "dev_abs", "dev_loc"]
     # plot_count(
     #     df=df_events, 
     #     title=f"FREQUENCY DEVIANCY | SES-{i:003d}",
@@ -276,10 +318,10 @@ for idx in range(94, 100):
     # FREQUENCY DIFFERENCE
     # How is the difference between base and deviant frequency distributed ?
     # Use exploded dataframe (plot is on event-level, not trial-level)
-    params = ['base_freq', 'freq_dev_no', 'freq_dev', 'freq_loc', 'dev', 'dev_loc']
+    # params = ['base_freq', 'freq_dev_no', 'freq_dev', 'freq_loc', 'dev', 'dev_loc']
 
     # Negative vs Positive
-    order = sorted(df_events['freq_diff'].unique())
+    # order = sorted(df_events['freq_diff'].unique())
     # plot_count(
     #     df=df_events,
     #     title=f"FREQUENCY DIFFERENCE | SES-{i:003d}",
@@ -295,7 +337,7 @@ for idx in range(94, 100):
     # )
 
     # Absolute
-    order = sorted(df_events['freq_diff_abs'].unique())
+    # order = sorted(df_events['freq_diff_abs'].unique())
     # plot_count(
     #     df=df_events,
     #     title=f"FREQUENCY DIFFERENCE | SES-{i:003d}",
@@ -316,8 +358,8 @@ for idx in range(94, 100):
     # Use exploded dataframe (plot is on event-level, not trial-level)
     
     # Negative vs Positive
-    params = ['base_freq', 'freq_diff', 'freq_dev', 'freq_loc', 'dev', 'dev_loc']
-    order = sorted(df_events['freq_dev_no'].unique())
+    # params = ['base_freq', 'freq_diff', 'freq_dev', 'freq_loc', 'dev', 'dev_loc']
+    # order = sorted(df_events['freq_dev_no'].unique())
     # plot_count(
     #     df=df_events,
     #     title=f"FREQUENCY DEVIANTS COUNT PER TRIAL | SES-{i:003d}",
@@ -333,7 +375,7 @@ for idx in range(94, 100):
     # )
 
     # Absolute
-    params = ['base_freq', 'freq_diff_abs', 'freq_dev', 'freq_loc', 'dev_abs', 'dev_loc']
+    # params = ['base_freq', 'freq_diff_abs', 'freq_dev', 'freq_loc', 'dev_abs', 'dev_loc']
     # plot_count(
     #     df=df_events,
     #     title=f"FREQUENCY DEVIANTS COUNT PER TRIAL | SES-{i:003d}",
@@ -347,41 +389,3 @@ for idx in range(94, 100):
     #     max_cols=7,
     #     rect=(0.02, 0, 0.93, 0.98) # left, bottom, right, top
     # )
-
-    # ---------------------------------------------------------------------------------------------
-    # FREQUENCY DEVIANTS POSITION
-    # How is the position of frequency deviants distributed ?
-    # Use exploded dataframe (plot is on event-level, not trial-level)
-
-    # Negative vs Positive
-    params = ['base_freq', 'freq_diff', 'freq_dev', 'freq_dev_no']
-    order = sorted(df_events['dev'].unique())
-    plot_count(
-        df=df_events,
-        title=f"FREQUENCY DEVIANTS LOCATION | SES-{i:003d}",
-        x_names=params,
-        x_label="Frequency Deviants Location [tone idx]",
-        y_name='dev',
-        y_order=order,
-        y_label="Count",
-        save_as=f"plots/ses-{i:003d}_freqDevLoc-dir.png",
-        show=False,
-        max_cols=7,
-        rect=(0.02, 0, 0.93, 0.98) # left, bottom, right, top
-    )
-
-    # Absolute
-    params = ['base_freq', 'freq_diff_abs', 'freq_dev', 'freq_dev_no']
-    plot_count(
-        df=df_events,
-        title=f"FREQUENCY DEVIANTS LOCATION | SES-{i:003d}",
-        x_names=params,
-        x_label="Frequency Deviants Location [tone idx]",
-        y_name='dev',
-        y_order=order,
-        y_label="Count",
-        save_as=f"plots/ses-{i:003d}_freqDevLoc-abs.png",
-        show=False,
-        max_cols=7,
-        rect=(0.02, 0, 0.93, 0.98) # left, bottom, right, top
-    )
