@@ -303,7 +303,7 @@ def create_experimental_sessions(params, sesID, save_csv=False, MAX_BLOCK_DURATI
 	### --------------------------- Parameters that vary across trials ----------------------------
 	ITI = random.sample(
 		range(params["ITI_MIN"], params["ITI_MAX"] + 1),
-		k=(NO_TRIALS_ALL - params["NO_BLOCKS"])
+		k=(NO_TRIALS_ALL)
 		)
 
 	# Print update on distance between important events given the average ITI duration.
@@ -522,10 +522,7 @@ def create_experimental_sessions(params, sesID, save_csv=False, MAX_BLOCK_DURATI
 			cad["block_no"] = block_no + 1
 
 			# Add ITI
-			if trial_no != block - 1:
-				cad["iti"] = ITI.pop(0)
-			else:
-				cad["iti"] = 0
+			cad["iti"] = ITI.pop(0)
 			
 			BLOCK_COMBOS.append(cad)
 
@@ -562,7 +559,7 @@ def create_experimental_sessions(params, sesID, save_csv=False, MAX_BLOCK_DURATI
 
 	# Print update on the duration of the experiment, blocks and trials.
 	print(
-	f"\nExperiment duration: {exp_dur_min:.2f} min of signal trials."
+	f"\nExperiment duration: {exp_dur_min:.2f} min."
 	f"\nAverage block duration: {block_dur_min:.2f} min."
 	f"\nAverage trial duration: {trial_dur_sec:.2f} sec."
 	)

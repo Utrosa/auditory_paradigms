@@ -31,15 +31,6 @@ import create_soundtrack_soundgen as sg
 control.set_develop_mode(on=True) # TODO: set to False when running the real experiment
 # TODO: set OUTPUT DEVICE for soundevice to work optimally (issues with linux)
 
-# Get current time for unique ID of output files' filenames
-now = datetime.now()
-tis = int(now.timestamp())
-
-# Use current time to seed both random generators
-seed = int(tis * 1000) % 2**32
-random.seed(seed)    #CHECK: is this obsolete?
-np.random.seed(seed) #CHECK: is this obsolete?
-
 # Specify BIDS-formatted EventFiles for localizer
 ## onset [msec], duration [msec], stim_file [wav], response [HIT, ...]
 ## key [chr(ASCII)], press_time [msec], RT [msec]
@@ -50,7 +41,7 @@ log_loc_format_NaNs  = "{0:.3f};{1:.3f};{2};{3};{4};{5};{6}\n"
 
 # 01. PARAMETERS -------------------------------------------------------------------------
 sesID = 8
-localizer_on = True
+localizer_on = False
 main_task_on = True
 params = {
 
@@ -490,6 +481,34 @@ def play_silence(null_sound, sound_duration, exp, null_number, keyboard, respons
     silence_end = exp.clock.time
     return silence_start, silence_end
 
+# Functions needed for the main task.
+def give_feedback_freqCount(current_event, response, good, bad):
+    '''
+    Determines the response category for a given response in the frequency counting task.
+    Gives feedback by changing the color of the fixation cross.
+    
+    Parameters:
+    - current_event: The number of frequency deviants in the current trial.
+    - response: The identity of the key pressed in ASCII code.
+    - good: A class implementing fixation cross for correct responses.
+    - bad: A class implementing fixation cross for wrong responses.
+
+    Returns:
+    - perfo_code: The response category (str).
+    - trial_performance: Dictionary tracking performance across trials (dict).
+    - feeedback_status: Indicates whether feedback is given or not (boolean).
+    '''
+    # Default values
+    perfo_code, feedback_status = None, None
+
+    # Feedback structure
+    if current_event == response:
+        good.present(clear = False, log_event_tag = True); trial_performance["YES"] += 1; perfo_code = "CORRECT"; feedback_status = True
+    else:
+        bad.present(clear = False, log_event_tag = True); trial_performance["NO"] += 1; perfo_code = "INCORRECT"; feedback_status = True
+
+    return perfo_code, trial_performance, feedback_status
+
 # 03. LOAD STIMULI -----------------------------------------------------------------------
 # Load audio stimuli for localizer
 audio_root    = Path(params["AUDIO_ROOT"])
@@ -497,7 +516,7 @@ wav_filepaths = list(Path(params["AUDIO_ROOT"]).glob(params["AUDIOFILE_REGEX"]))
 
 # Rule: sounds include "s3" in filename & silences "null".
 filenames_sounds = [file_1 for file_1 in wav_filepaths if "s3" in str(file_1)]
-filenames_null   = [file_2 for file_2 in wav_filepaths if "null" in str(file_2)][0]
+filename_null    = [file_2 for file_2 in wav_filepaths if "null" in str(file_2)][0]
 
 # Shuffle the sounds
 random.shuffle(filenames_sounds)
@@ -522,10 +541,6 @@ for col in list_cols:
 sesh = input("Enter the session number with leading zero (e.g.: 01, 02, ...):")
 exp  = design.Experiment(name = "devLoc") # give a name following BIDS specification
 control.initialize(exp)
-
-# Set variables to be saved for the main task # TODO: modify & get info from soundgen
-# exp.add_data_variable_names(['SUB_ID', 'SESSION_NO', 'BLOCK_NO', 'TRIAL_NO', 
-#                              'NO_TONES', 'TONE_IDX', 'ISI', 'DELTA', 'RESPONSE', 'RT'])
 
 # 05. CREATE & PRELOAD THE STIMULI -------------------------------------------------------
 # Creating stimuli.
@@ -619,6 +634,8 @@ control.start(skip_ready_screen=True)
 
 ### ------------------ LOCALIZER  ------------------ ##
 if localizer_on:
+    task_name = "localizer"
+    
     # Decide randomly to start with silence or sound.
     start_with_sound = random.choice([True, False])
 
@@ -639,10 +656,9 @@ if localizer_on:
         # Initialize the log with unique timestamps.
         nw = datetime.now()
         ts = int(nw.timestamp())
-        event_output = io.OutputFile(suffix = sesh, directory = f'bids_output')
-        event_output.write("onset;duration;stim_file;response;key;press_time;response_time\n")
+        localizer_log = io.OutputFile(suffix = sesh, directory = f'bids_output')
+        localizer_log.write("onset;duration;stim_file;response;key;press_time;response_time\n")
         run_performance = {"H": 0, "M": 0, "CR": 0, "FA": 0}
-        canvas.present()
 
         # Wait for onset of functional sequence
         keyboard.wait(keys=[misc.constants.K_s])
@@ -677,7 +693,7 @@ if localizer_on:
                             wrong,
                             keyboard,
                             params["DETECTION_SYMBOL"],
-                            event_output)
+                            localizer_log)
 
                 # Refresh the screen
                 canvas.present()
@@ -689,7 +705,7 @@ if localizer_on:
                             params["SOUNDS_PER_SEQUENCE"],
                             keyboard,
                             params["DETECTION_SYMBOL"],
-                            event_output)
+                            localizer_log)
                 print("SOUND FIRST:"); compute_durations(params, t1, t2, True); compute_durations(params, t3, t4, True)
                 
                 # Refresh the screen
@@ -703,7 +719,7 @@ if localizer_on:
                             params["SOUNDS_PER_SEQUENCE"],
                             keyboard,
                             params["DETECTION_SYMBOL"],
-                            event_output)
+                            localizer_log)
 
                 # Refresh the screen
                 canvas.present()
@@ -719,7 +735,7 @@ if localizer_on:
                             wrong,
                             keyboard,
                             params["DETECTION_SYMBOL"],
-                            event_output)
+                            localizer_log)
                 print("SILENCE FIRST:"); compute_durations(params, t5, t6, True); compute_durations(params, t7, t8, True)
 
                 # Refresh the screen
@@ -729,8 +745,8 @@ if localizer_on:
             loop += 1
 
         # Save the log
-        event_output.rename(f"sub-{exp.subject:02d}_ses-{sesh}_task-{exp.name}_ts-{ts}_events.tsv")
-        event_output.save()
+        localizer_log.rename(f"sub-{exp.subject:02d}_ses-{sesh}_task-{task_name}_ts-{ts}_events.tsv")
+        localizer_log.save()
 
         # The experiment ends before the MRI protocol. Inform the participant to keep calm and remain still.
         blank_canvas.present()
@@ -741,62 +757,95 @@ if localizer_on:
 
 ### ------------------ MAIN TASK  ------------------ ##
 if main_task_on:
-    # TODO: Rename output data for the main task
-    # exp.data.rename(f"sub-{exp.subject:02d}_ses-{sesh}_task-{exp.name}_ts-{ts}.tsv")   
-    # exp.events.rename(f"sub-{exp.subject:02d}_ses-{sesh}_task-{exp.name}_ts-{ts}.tsv") 
+    task_name = "mainTask"
+    
+    # Present instructions for the counting task.
+    # Wait a minimal time needed to read the instructions.
+    instructions_task.present()
+    exp.clock.wait(params["WAIT_TIME"])
+    keyboard.wait(keys=params['DETECTION_SYMBOL'])
 
-    # # Present instructions for the counting task.
-    # # Wait a minimal time needed to read the instructions.
-    # instructions_task.present()
-    # exp.clock.wait(params["WAIT_TIME"])
-    # keyboard.wait(keys=params['DETECTION_SYMBOL'])
+    # Clear and present a blank screen.
+    instructions_task.clear_surface()
+    blank_canvas.present()
 
-    # # Clear and present a blank screen.
-    # instructions_task.clear_surface()
-    # blank_canvas.present()
+    # Initialize the log with unique timestamps.
+    nw = datetime.now()
+    ts = int(nw.timestamp())
+    main_task_log = io.OutputFile(suffix = sesh, directory = f'bids_output')
+    main_task_log.write("freq_dev_no;response;key;response_time\n")
 
-    # # Wait for onset of the functional sequence for the main task
-    # keyboard.wait(keys=[misc.constants.K_s])
-    # canvas.present()
+    # Wait for onset of the functional sequence for the main task
+    keyboard.wait(keys=[misc.constants.K_s])
+    canvas.present()
 
-    # # Mark the start of the functional sequence for the main task
-    # task_start_time = exp.clock.time
+    # Mark the start of the functional sequence for the main task
+    task_start_time = exp.clock.time
 
-    # # Wait for 4 's' keys from the scanner to synchronize scanner & script onsets.
-    # keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
-    # keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
+    # Wait for 4 's' keys from the scanner to synchronize scanner & script onsets.
+    keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
+    keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
 
-    # # Play the soundtrack over the blocks
-    # for block in range(no_blocks):
+    # Play the soundtrack over the blocks
+    for block in range(no_blocks):
 
-    #     # Correct for zero-indexing
-    #     block_idx = block + 1
+        # Correct for zero-indexing
+        block_idx = block + 1
 
-    #     # Select only the part of the dataframe relevant for the current trial
-    #     df_block = df[df["block_no"] == block_idx]
+        # Select only the part of the dataframe relevant for the current trial
+        df_block = df[df["block_no"] == block_idx]
 
-    #     # Generate the soundtrack of the experimental session
-    #     for soundtrack in sound_gen.generate_soundtrack(
-    #        df_block,
-    #        params["MAX_AMPLITUDE"],
-    #        params["NUM_HARMONICS"], 
-    #        params["TONE_DURATION"], 
-    #        params["HARMONIC_FACTOR"],
-    #        params["TONE_LOUDNESS"]
-    #        ):
+        # Check if quit key is pressed
+        keyboard.check(keys=[misc.constants.K_y])
 
-    #         # Check if quit key is pressed during the trial
-    #         keyboard.check(keys=[misc.constants.K_ESCAPE])
+        # Generate the soundtrack of the experimental session
+        for soundtrack, ITI, freqs in sound_gen.generate_soundtrack(
+           df_block,
+           params["MAX_AMPLITUDE"],
+           params["NUM_HARMONICS"], 
+           params["TONE_DURATION"], 
+           params["HARMONIC_FACTOR"],
+           params["TONE_LOUDNESS"]
+           ):
 
-    #         sd.play(soundtrack, samplerate = params["SAMPLE_RATE"])
+            # Check if quit key is pressed during the trial
+            keyboard.check(keys=[misc.constants.K_y])
 
-    #         # Play the trial until the end
-    #         sd.wait()
+            # Initialize feedback tracking
+            trial_performance = {"YES": 0, "NO": 0}
+            feedback_shown, fs = None, None
+            sounds_start = exp.clock.time
 
-    #     # At the end of each block, give time to rest (works as inter-block-interval)
-    #     if block != len(no_blocks) - 1:
-    #         rest_task.present()
-    #         keyboard.wait(keys=params['DETECTION_SYMBOL'])
+            # Refresh the screen when feedback was given
+            if feedback_shown is not None and count - feedback_shown == 2:
+                canvas.present()
+
+            # Play the soundtrack
+            sd.play(soundtrack, samplerate = params["SAMPLE_RATE"])
+
+            # Wait until the end
+            sd.wait()
+
+            # Wait for response with max waiting time equal to ITI
+            response, rt = keyboard.wait_char(
+                char = params['DETECTION_SYMBOL'],
+                duration = ITI
+                )
+            perfo_code, trial_performance, feedback_status = give_feedback_freqCount(
+                freqs, 
+                response,
+                correct,
+                wrong
+                )
+        
+        # At the end of each block, give time to rest (works as inter-block-interval)
+        if block != len(no_blocks) - 1:
+            rest_task.present()
+            keyboard.wait(keys=params['DETECTION_SYMBOL'])
+
+    # Save the log
+    main_task_log.rename(f"sub-{exp.subject:02d}_ses-{sesh}_task-{task_name}_ts-{ts}_events.tsv")
+    main_task_log.save()
 
 goodbye_message.present()
 exp.clock.wait(params["WAIT_TIME"])

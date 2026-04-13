@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-# Time-stamp: <2026-03-30 m.utrosa@bcbl.eu>
+# Time-stamp: <2026-04-13 m.utrosa@bcbl.eu>
 '''
 create_soundtrack_soundgen() module generates sounds as defined in csv.
 '''
@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 import sounddevice as sd
-import ast # to handle data types in pandas dataframes
+import ast
 
 # TODO: check accuracy
 def set_dbspl(sound, dbspl, ref=20e-6):
@@ -104,8 +104,7 @@ class SoundGen:
 
         # Get number of trials per block
         no_trials = len(df["trial_no"].unique())
-        print(f"\nNO TRIALS: {no_trials}")
-
+        
         # Reminder to yourself that we're assuming msec as unit for ISI, ITI, and DEV
         sample_isi = df["isi"].iloc[5] if not df.empty else "N/A"
         sample_iti = df["iti"].iloc[5] if not df.empty else "N/A"
@@ -130,24 +129,29 @@ class SoundGen:
             freq_count = 0
 
             # Raise error if timing and frequency devs occur on the same tone
-            if trial.dev_loc in trial.freq_loc:
-                raise ValueError(
-                    f"\nFor trial-{trial.trial_no:02d} block-{trial.block_no:02d}."
-                    " Frequency and timing deviations "
-                    f"occur on the same tone (idx: {trial.dev_loc})."
-                    "\nCheck your input dataframe."
-                    " Parameter combinations may be set incorrectly."
-                    )
+            if not np.isnan(trial.dev_loc): # nan for silent trials
+                if trial.dev_loc in trial.freq_loc:
+                    raise ValueError(
+                        f"\nFor trial-{trial.trial_no:02d} block-{trial.block_no:02d}."
+                        " Frequency and timing deviations "
+                        f"occur on the same tone (idx: {trial.dev_loc})."
+                        "\nCheck your input dataframe."
+                        " Parameter combinations may be set incorrectly."
+                        )
 
-            # Convert to sec on every trial
-            dev = trial.dev_abs / 1000
+            # Convert isi & iti to sec on every trial
             isi = trial.isi / 1000
             iti = trial.iti / 1000
                         
-            # Calculate how many events/samples occur per event
-            iti_samples = int(iti * self.sample_rate)
-            isi_samples = int(isi * self.sample_rate)
-            dev_samples = int(dev * self.sample_rate)
+            # Calculate how many isi & iti events/samples occur per event
+            iti_samples  = int(iti * self.sample_rate)
+            isi_samples  = int(isi * self.sample_rate)
+            tone_samples = int(tone_duration * self.sample_rate)
+
+            # For sound trials: convert dev to sec & get no. of samples
+            if not pd.isna(trial.dev_loc):
+                dev = trial.dev_abs / 1000
+                dev_samples = int(dev * self.sample_rate)
 
             # Loop through each tone in the sequence
             for i in range(trial.no_tones):
@@ -156,9 +160,15 @@ class SoundGen:
                 tone_count = i + 1
 
                 # ----------------- Adding TONES ------------------
+                ### SILENT trials
+                # If the current trial is silent, "dev_loc" is None.
+                if pd.isna(trial.dev_loc):
+                    sound = np.zeros(tone_samples)
+                
+                ### SOUND trials
                 # If the current trial has no frequency deviations,
                 # the first (and only) element of "freq_dev" is False.
-                if trial.freq_dev[0]:
+                elif trial.freq_dev[0]:
 
                     # Generate frequency deviant tone at given locations
                     if freq_count < trial.freq_dev_no:
@@ -202,7 +212,11 @@ class SoundGen:
                         )
 
                 # Apply ramp to start and end using the sine_ramp method
-                ramped_sound = self.sine_ramp(sound)
+                # for sound trials only
+                if pd.isna(trial.dev_loc):
+                    ramped_sound = np.zeros(tone_samples)
+                else:
+                    ramped_sound = self.sine_ramp(sound)
                 
                 # Add the sound to the sequence
                 sequence.append(ramped_sound)
@@ -210,22 +224,29 @@ class SoundGen:
                 # ----------------- Adding ISI --------------------
                 current_isi = isi_samples
 
-                # Late tones
-                # The ISI before the current tone is longer, ISI after shorter.
-                # "dev_samples" are calculated from absolute timing deviant value
-                if trial.dev_type == "late":
-                    if tone_count == (trial.dev_loc - 1):
-                        current_isi = isi_samples + dev_samples
-                    elif tone_count == trial.dev_loc:
-                        current_isi = isi_samples - dev_samples
+                # For sound trials with deviations
+                if not pd.isna(trial.dev_type):
 
-                # Early tones
-                # The ISI before the current tone is shorter, ISI after longer.
-                elif trial.dev_type == "early":
-                    if tone_count == (trial.dev_loc - 1):
-                        current_isi = isi_samples - dev_samples
-                    elif tone_count == trial.dev_loc:
-                        current_isi = isi_samples + dev_samples
+                    # Late tones
+                    # The ISI before the current tone is longer, ISI after shorter.
+                    # "dev_samples" are calculated from absolute timing deviant value
+                    if trial.dev_type == "late":
+                        if tone_count == (trial.dev_loc - 1):
+                            current_isi = isi_samples + dev_samples
+                        elif tone_count == trial.dev_loc:
+                            current_isi = isi_samples - dev_samples
+
+                    # Early tones
+                    # The ISI before the current tone is shorter, ISI after longer.
+                    elif trial.dev_type == "early":
+                        if tone_count == (trial.dev_loc - 1):
+                            current_isi = isi_samples - dev_samples
+                        elif tone_count == trial.dev_loc:
+                            current_isi = isi_samples + dev_samples
+                    
+                    # On-time tones
+                    else:
+                        current_isi = isi_samples
 
                 # Add the ISI
                 # Note: there's one less isi in the sequence than tones.
@@ -234,12 +255,15 @@ class SoundGen:
                 
             # ----------------- Adding ITI --------------------
             # Note: there's one less ITI than trials.
-            if trial.trial_no < no_trials:
-                sequence.append(np.zeros(iti_samples))
+            # if trial.trial_no < no_trials:
+            #     sequence.append(np.zeros(iti_samples))
 
             # -------------- Join all segments ----------------
             final_sequence = np.concatenate(sequence)
-            yield final_sequence
+
+            # Yield the tone sequence, ITI (array of zeros), and
+            # the number of frequency deviants 
+            yield final_sequence, trial.iti, trial.freq_dev_no
 
             # Clear the list for the next iteration (memory <3)
             sequence.clear()
@@ -248,7 +272,7 @@ class SoundGen:
 if __name__ == "__main__":
     
     # Set the parameters
-    sesID = 14
+    sesID = 8
     params = {
         "PROJECT_ROOT"    : "/home/mutrosa/Documents/projects/auditory_paradigms/detection_accuracy/test",  
         "TONE_LOUDNESS"   : 70,     # dB SPL
@@ -262,7 +286,7 @@ if __name__ == "__main__":
 
     # Load the trial parameters from csv
     homePath  = Path(params["PROJECT_ROOT"])
-    paramPath = homePath / f"exp_parameter_combo_ses-{sesID:003d}.csv"
+    paramPath = homePath / f"ses-{sesID:003d}_exp_parameter_combo.csv"
     df        = pd.read_csv(paramPath)
     no_blocks = len(df["block_no"].unique())
 
@@ -289,7 +313,7 @@ if __name__ == "__main__":
         df_block = df[df["block_no"] == block_idx]
 
         # Generate the soundtrack of the experimental session
-        for soundtrack in sound_gen.generate_soundtrack(
+        for soundtrack, iti, freq in sound_gen.generate_soundtrack(
            df_block,
            params["MAX_AMPLITUDE"],
            params["NUM_HARMONICS"], 
