@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-# Time-stamp: <2026-03-28 m.utrosa@bcbl.eu>
+# Time-stamp: <2026-04-13 m.utrosa@bcbl.eu>
 '''
 Visualize the relationships between variables that define trials.
 - inter trial interval (ITI) [msec]
@@ -17,7 +17,7 @@ import pandas as pd
 import seaborn as sns
 import numpy as np
 import math
-import ast # to handle data types in pandas dataframes
+import ast
 
 # 02. DEFINE THE FUNCTION -------------------------------------------------------------------------
 def plot_count(df, title, x_names, x_label, y_name, y_order, y_label, y_group=None, save_as=None, show=False, max_cols=7, rect=(0,0,1,1), fig_n=3.5):
@@ -197,8 +197,8 @@ for idx in range(300, 350):
     df_events.dropna(inplace=True)
 
     # ---------------------------------------------------------------------------------------------
-    # TIMING DEVIANTS POSITION
-    # How is the position of timing deviants distributed ?
+    # TIMING DEVIANTS | BASE FREQ, FREQ DIFF, FREQ DEV, FREQ DEV NUMBER
+    # How are timing deviants distributed ?
     # Use exploded dataframe (plot is on event-level, not trial-level)
 
     # Negative vs Positive
