@@ -126,7 +126,7 @@ class SoundGen:
             
             # Initialize a sequence and count of frequency devs
             sequence = []
-            freq_count = 0
+            freq_dev_count = 0
 
             # Raise error if timing and frequency devs occur on the same tone
             if not np.isnan(trial.dev_loc): # nan for silent trials
@@ -161,24 +161,24 @@ class SoundGen:
 
                 # ----------------- Adding TONES ------------------
                 ### SILENT trials
-                # If the current trial is silent, "dev_loc" is None.
-                if pd.isna(trial.dev_loc):
+                # If the current trial is silent, "dev" is None.
+                if pd.isna(trial.dev):
                     sound = np.zeros(tone_samples)
-                
+
                 ### SOUND trials
                 # If the current trial has no frequency deviations,
                 # the first (and only) element of "freq_dev" is False.
                 elif trial.freq_dev[0]:
 
                     # Generate frequency deviant tone at given locations
-                    if freq_count < trial.freq_dev_no:
-                        freq_loc = trial.freq_loc[freq_count]
+                    if trial.freq_dev_no != 0 and freq_dev_count < trial.freq_dev_no:
+                        freq_loc = trial.freq_loc[freq_dev_count]
                     else:
                         freq_loc = False
 
                     if tone_count == freq_loc:
                         sound = self.sound_maker(
-                            trial.freq_dev[freq_count],
+                            trial.freq_dev[freq_dev_count],
                             max_amplitude,
                             num_harmonics,
                             tone_duration,
@@ -187,7 +187,7 @@ class SoundGen:
                             )
                         
                         # Update frequency dev count
-                        freq_count += 1
+                        freq_dev_count += 1
 
                     # Generate frequency standard tone at other locations
                     else:
@@ -252,17 +252,20 @@ class SoundGen:
                 # Note: there's one less isi in the sequence than tones.
                 if tone_count < trial.no_tones:
                     sequence.append(np.zeros(current_isi))
-                
-            # ----------------- Adding ITI --------------------
-            # Note: there's one less ITI than trials.
-            # if trial.trial_no < no_trials:
-            #     sequence.append(np.zeros(iti_samples))
 
             # -------------- Join all segments ----------------
             final_sequence = np.concatenate(sequence)
 
-            # Yield the tone sequence, ITI (array of zeros), and
-            # the number of frequency deviants 
+            # Check that frequency deviants were counted correctly.
+            if not pd.isna(trial.freq_dev_no):
+                if trial.freq_dev_no != freq_dev_count:
+                    raise ValueError(
+                        f"Counted more/less frequency deviants ({freq_dev_count}) "
+                        f"than specified ({trial.freq_dev_no}) "
+                        f"for trial {trial.trial_no} in block {trial.block_no}.")
+
+            # Yield the tone sequence, ITI (an array of zeros),
+            # and the number of frequency deviants.
             yield final_sequence, trial.iti, trial.freq_dev_no
 
             # Clear the list for the next iteration (memory <3)

@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-# Time-stamp: <2026-04-12 m.utrosa@bcbl.eu>
+# Time-stamp: <2026-04-13 m.utrosa@bcbl.eu>
 
 # 00. PREPARATION ---------------------------------------------------------------------------------
 import sys
@@ -394,7 +394,7 @@ def create_experimental_sessions(params, sesID, save_csv=False, MAX_BLOCK_DURATI
 		if bool(FREQ_DEVS) == True:
 			trial["freq_dev"]      = FREQ_DEVS
 			trial["freq_dev_type"] = FREQ_DEV_TYPE
-			trial["freq_loc"]      = FREQ_LOC
+			trial["freq_loc"]      = sorted(FREQ_LOC)
 			trial["freq_dev_no"]   = len(FREQ_DEVS)
 		else:
 			trial["freq_dev"]      = [False]
@@ -441,7 +441,7 @@ def create_experimental_sessions(params, sesID, save_csv=False, MAX_BLOCK_DURATI
 	if sum(blocks) != NO_TRIALS_ALL:
 		raise ValueError(f"Blocks have {blocks} trials, experiment {NO_TRIALS_ALL}.")
 	
-	# Create one empty/silent trial: null sound with imperceptible frequency.
+	# Create one empty/silent trial.
 	empty_trial = {
 		'dev': None,
 		'dev_type': None,
@@ -449,7 +449,7 @@ def create_experimental_sessions(params, sesID, save_csv=False, MAX_BLOCK_DURATI
 		'dev_abs': None,
 		'no_tones': NO_TONES[0],
 		'isi': ISI[0],
-		'base_freq': 40000,
+		'base_freq': None, # Irrelevant: not used in create_soundtrack_soundgen.py
 		'freq_dev': None,
 		'freq_dev_type': None,
 		'freq_loc': None,
