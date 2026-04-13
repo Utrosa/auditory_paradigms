@@ -656,7 +656,7 @@ if __name__ == "__main__":
 	"LAST_FREQ_LOC"  : 7,  # The last tone to be displaced frequency-wise
 	}
 
-	for session in range(1000):
+	for session in range(1, 1001):
 		with open(f"trials/ses-{session:003d}_exp_parameter_combo.txt", "w") as f:
 			sys.stdout = f
 			create_experimental_sessions(params, session, save_csv=True)

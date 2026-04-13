@@ -171,10 +171,12 @@ class SoundGen:
                 elif trial.freq_dev[0]:
 
                     # Generate frequency deviant tone at given locations
-                    if trial.freq_dev_no != 0 and freq_dev_count < trial.freq_dev_no:
-                        freq_loc = trial.freq_loc[freq_dev_count]
-                    else:
-                        freq_loc = False
+                    if trial.freq_dev_no != 0:
+
+                        if freq_dev_count < trial.freq_dev_no:
+                            freq_loc = trial.freq_loc[freq_dev_count]
+                        else:
+                            freq_loc = False
 
                     if tone_count == freq_loc:
                         sound = self.sound_maker(
@@ -275,7 +277,7 @@ class SoundGen:
 if __name__ == "__main__":
     
     # Set the parameters
-    sesID = 8
+    sesID = 25
     params = {
         "PROJECT_ROOT"    : "/home/mutrosa/Documents/projects/auditory_paradigms/detection_accuracy/test",  
         "TONE_LOUDNESS"   : 70,     # dB SPL
