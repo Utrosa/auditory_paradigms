@@ -88,11 +88,12 @@ class SoundGen:
 
         return sound
 
-    def generate_soundtrack(self, df, max_amplitude, num_harmonics, tone_duration, harmonic_factor, dbspl):
+    def generate_soundtrack(self, df, current_time, max_amplitude, num_harmonics, tone_duration, harmonic_factor, dbspl):
         """
         Generate tone sequences with timing deviants for current trial.
 
         :param df: A dataframe with tone sequence parameters with msec as the time unit.
+        :param current_time: Current time in the experiment in sec, relative to start of the task.
         :param max_amplitude: Maximum amplitude to avoid clipping.
         :param num_harmonics: Number of harmonic tones.
         :param tone_duration: Duration of the tone in milliseconds.
@@ -101,7 +102,7 @@ class SoundGen:
         
         :yield: final_sequence: An array of audio samples, representing harmonic a complex tone sequence.
         """
-
+        print(f"CURRENT TIME: {current_time}")
         # Get number of trials per block
         no_trials = len(df["trial_no"].unique())
         
@@ -124,8 +125,9 @@ class SoundGen:
         # Each trial is a linear combination of parameters
         for trial in df.itertuples():
             
-            # Initialize a sequence and count of frequency devs
+            # Initialize the sequence, log and count of frequency devs.
             sequence = []
+            sequence_log = str()
             freq_dev_count = 0
 
             # Raise error if timing and frequency devs occur on the same tone
@@ -220,9 +222,14 @@ class SoundGen:
                 else:
                     ramped_sound = self.sine_ramp(sound)
                 
+                # Get tone onset and add to log
+                onset_sec = current_time / self.sample_rate
+                log_format = f"{onset_sec};{tone_duration};{trial.dev_type}\n"
+                sequence_log = sequence_log + log_format
+                
                 # Add the sound to the sequence
                 sequence.append(ramped_sound)
-
+                current_time += tone_samples
                 # ----------------- Adding ISI --------------------
                 current_isi = isi_samples
 
@@ -254,6 +261,7 @@ class SoundGen:
                 # Note: there's one less isi in the sequence than tones.
                 if tone_count < trial.no_tones:
                     sequence.append(np.zeros(current_isi))
+                    current_time += current_isi
 
             # -------------- Join all segments ----------------
             final_sequence = np.concatenate(sequence)
@@ -268,7 +276,7 @@ class SoundGen:
 
             # Yield the tone sequence, ITI (an array of zeros),
             # and the number of frequency deviants.
-            yield final_sequence, trial.iti, trial.freq_dev_no
+            yield final_sequence, trial.iti, trial.freq_dev_no, sequence_log
 
             # Clear the list for the next iteration (memory <3)
             sequence.clear()
