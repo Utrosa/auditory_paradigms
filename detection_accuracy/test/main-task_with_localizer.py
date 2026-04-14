@@ -23,9 +23,6 @@ from expyriment import design, control, stimuli, misc, io
 # Import the external sequence generation file for the main task
 import create_soundtrack_soundgen as sg
 
-# Set mode
-control.set_develop_mode(on=True) # TODO: set to False when running the real experiment
-
 # Specify BIDS-formatted EventFiles for localizer
 ## onset [msec], duration [msec], stim_file [wav], response [HIT, ...]
 ## key [chr(ASCII)], press_time [msec], RT [msec]
@@ -35,7 +32,8 @@ log_task_format_fStr = "{1};{2};{3};{4}\n"
 
 # 01. PARAMETERS -------------------------------------------------------------------------
 sesID = 26
-localizer_on = True
+control.set_develop_mode(on=True) # TODO: set to False when running the real experiment
+localizer_on = False
 main_task_on = True
 params = {
 
@@ -888,11 +886,7 @@ if main_task_on:
 
                     # Log with correction of the response for MRI buttons (1 is 0 devs, ...)
                     response = response - 1
-                    freqDev_log.write(f"{key_press_time};100;{chr(response - 1)};{rt}\n")
-
-            # ------ No-key trials ------
-            if not response:
-                freqDev_log.write(f"{np.nan};{np.nan};{response};{np.nan}\n")
+                    freqDev_log.write(f"{key_press_time};100;{chr(response)};{rt}\n")
 
             # Write relevant info to log for tones
             timDev_log.write(f"{trial_log}")
@@ -913,6 +907,9 @@ if main_task_on:
 
             # Clearing any key presses
             keyboard.clear()
+
+            # Check if quit key is pressed
+            keyboard.check(keys=[misc.constants.K_y])
 
             # If the task ends before the MRI protocol. Inform the participant to keep calm and remain still.
             blank_canvas.present()
@@ -938,9 +935,6 @@ if main_task_on:
             keyboard.wait(keys=params['DETECTION_SYMBOL'])
             mainTask_rest.clear_surface()
             blank_canvas.present()
-
-            # Starting a new block with a key unavailable to the participant
-            keyboard.wait(keys=[misc.constants.K_g])
 
     # Say thanks at the end of the frequency counting task
     goodbye_task_message = stimuli.TextScreen(

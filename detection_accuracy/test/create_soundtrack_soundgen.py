@@ -161,6 +161,9 @@ class SoundGen:
                 # Correct for zero indexing
                 tone_count = i + 1
 
+                # Initialize for logging
+                fDev, fDevLoc = None, None
+
                 # ----------------- Adding TONES ------------------
                 ### SILENT trials
                 # If the current trial is silent, "dev" is None.
@@ -177,6 +180,7 @@ class SoundGen:
                         freq_loc = sorted(trial.freq_loc)
                         if freq_dev_count < trial.freq_dev_no:
                             freq_loc = freq_loc[freq_dev_count]
+                            fDevLoc  = freq_loc
                         else:
                             freq_loc = False
 
@@ -189,6 +193,7 @@ class SoundGen:
                             harmonic_factor,
                             dbspl
                             )
+                        fDev = trial.freq_dev[freq_dev_count]
                         
                         # Update frequency dev count
                         freq_dev_count += 1
@@ -224,7 +229,26 @@ class SoundGen:
                 
                 # Get tone onset and add to log
                 onset_sec = current_time / self.sample_rate
-                log_format = f"{onset_sec};{tone_duration};{trial.dev_type}\n"
+                if not pd.isna(trial.dev):
+                    if trial.dev > 0:
+                        if not fDev:
+                            tone_type = f"fStd-{trial.base_freq}Hz_delta-p{int(trial.dev_abs)}ms_tDevLoc-{trial.dev_loc}_n-fStdtDev"
+                        else:
+                            tone_type = f"fStd-{trial.base_freq}Hz_fDev-{fDev}Hz_fDevLoc-{fDevLoc}_delta-p{int(trial.dev_abs)}ms_tDevLoc-{trial.dev_loc}_n-fDevtDev"
+                    elif trial.dev < 0:
+                        if not fDev:
+                            tone_type = f"fStd-{trial.base_freq}Hz_delta-n{int(trial.dev_abs)}ms_tDevLoc-{trial.dev_loc}_n-fStdtDev"
+                        else:
+                            tone_type = f"fStd-{trial.base_freq}Hz_fDev-{fDev}Hz_fDevLoc-{fDevLoc}_delta-n{int(trial.dev_abs)}ms_tDevLoc-{trial.dev_loc}_n-fDevtDev"
+                    else:
+                        if not fDev:
+                            tone_type = f"fStd-{trial.base_freq}Hz_delta-{int(trial.dev_abs)}ms_tDevLoc-{trial.dev_loc}_n-fStdtStd"
+                        else:
+                            tone_type = f"fStd-{trial.base_freq}Hz_fDev-{fDev}Hz_fDevLoc-{fDevLoc}_delta-{int(trial.dev_abs)}ms_tDevLoc-{trial.dev_loc}_n-fDevtStd"
+                else:
+                    tone_type = "silence"
+                    
+                log_format = f"{onset_sec};{tone_duration};{trial.dev_type};{tone_type}\n"
                 sequence_log = sequence_log + log_format
                 
                 # Add the sound to the sequence
