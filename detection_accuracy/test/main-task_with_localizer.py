@@ -23,13 +23,8 @@ from expyriment import design, control, stimuli, misc, io
 # Import the external sequence generation file for the main task
 import create_soundtrack_soundgen as sg
 
-# TODO: Import custom-made functions. The issue is that they don't work now.
-# because the functions rely on expyriment classes such as canvas ... debug!
-# import localizer
-
 # Set mode
 control.set_develop_mode(on=True) # TODO: set to False when running the real experiment
-# TODO: set OUTPUT DEVICE for soundevice to work optimally (issues with linux)
 
 # Specify BIDS-formatted EventFiles for localizer
 ## onset [msec], duration [msec], stim_file [wav], response [HIT, ...]
@@ -54,8 +49,8 @@ params = {
     
     # Localizer structure
     "LOC_REP"             : 1,  # number of repetitions
-    "LOC_TRIALS"          : 2, # the number of equally long sound and silence pairs
-    "SOUNDS_PER_SEQUENCE" : 10, # determines the length of trials; each sound is 1 sec
+    "LOC_TRIALS"          : 10, # the number of equally long sound and silence pairs
+    "SOUNDS_PER_SEQUENCE" : 30, # determines the length of trials; each sound is 1 sec
 
     # Visual
     "CANVAS_SIZE"             : (1024, 768), # MRI monitor resolution.
@@ -135,7 +130,7 @@ params = {
 }
 
 # 2. FUNCTIONS --------------------------------------------------------------------------
-# Functions needed for the localizers. TODO: import from py file as module
+# Functions needed for the localizers.
 def create_soundtrack(sound_strata, sequence_len, rep_prob, sequence_no):
     '''
     Generates sounds sequences with the following constraints:

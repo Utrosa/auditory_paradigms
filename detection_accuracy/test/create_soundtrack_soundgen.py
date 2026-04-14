@@ -3,14 +3,14 @@
 '''
 create_soundtrack_soundgen() module generates sounds as defined in csv.
 '''
-# import warnings #I turned off because it's annoying & for every trial
+# import warnings # On pause because it's annoying
 import numpy as np
 import pandas as pd
 from pathlib import Path
 import sounddevice as sd
 import ast
 
-# TODO: check accuracy
+# TODO: replace set_dbspl() with Jasmin's code for sound normalization
 def set_dbspl(sound, dbspl, ref=20e-6):
     """
     Normalize waveform to target dB SPL.
@@ -102,7 +102,7 @@ class SoundGen:
         
         :yield: final_sequence: An array of audio samples, representing harmonic a complex tone sequence.
         """
-        print(f"CURRENT TIME: {current_time}")
+
         # Get number of trials per block
         no_trials = len(df["trial_no"].unique())
         
