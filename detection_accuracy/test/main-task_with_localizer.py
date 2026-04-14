@@ -3,8 +3,8 @@
 '''
 Main experimental script
 - runs localizer
-- runs frequency counting task
-- logs localizer and frequency detection in BIDS format
+- runs frequency counting task with timing deviant tone sequences
+- logs events in BIDS format
 
 Requires Expyriment version 1.0.0
 Local setup: All localizer sounds must be in "Stimuli" folder. Sounds need "s3" prefix.
@@ -37,11 +37,10 @@ control.set_develop_mode(on=True) # TODO: set to False when running the real exp
 log_loc_format_fStr  = "{0:.3f};{1:.3f};{2};{3};{4};{5:.3f};{6:.3f}\n"
 log_loc_format_NaNs  = "{0:.3f};{1:.3f};{2};{3};{4};{5};{6}\n"
 log_task_format_fStr = "{1};{2};{3};{4}\n"
-#TODO: Specify BIDS-formatted EventFiles for TASK
 
 # 01. PARAMETERS -------------------------------------------------------------------------
 sesID = 26
-localizer_on = False
+localizer_on = True
 main_task_on = True
 params = {
 
@@ -51,12 +50,12 @@ params = {
     "AUDIOFILE_REGEX" : "**/*.wav",
     
     # Experiment structure
-    "WAIT_TIME" : 1000, # msec (ensuring reading at the start & end of the experiment)
+    "WAIT_TIME" : 3000, # msec (ensuring reading at the start & end of the experiment)
     
     # Localizer structure
     "LOC_REP"             : 1,  # number of repetitions
-    "LOC_TRIALS"          : 10, # the number of equally long sound and silence pairs
-    "SOUNDS_PER_SEQUENCE" : 30, # determines the length of trials; each sound is 1 sec
+    "LOC_TRIALS"          : 2, # the number of equally long sound and silence pairs
+    "SOUNDS_PER_SEQUENCE" : 10, # determines the length of trials; each sound is 1 sec
 
     # Visual
     "CANVAS_SIZE"             : (1024, 768), # MRI monitor resolution.
@@ -331,7 +330,7 @@ def play_sounds(sequence, sound_duration, exp, canvas, fixation, correct, wrong,
             # ------ Key-press trials ------ 
             if keys and keys[0] != 115: # 115 is "s" from scanner sync box
                 press_time = exp.clock.time
-                key_ASCII_audio = keys[0] # If multiple, we take the first key
+                key_ASCII_audio = keys[-1] # If multiple, we take the last key
 
                 # Show feedback
                 perf_code, run_performance, cs, fs = give_feedback(sound_ID,
@@ -442,7 +441,7 @@ def play_silence(null_sound, sound_duration, exp, null_number, keyboard, respons
             # ------ Key-press trials ------ 
             if keys and keys[0] != 115: # 115 is "s" from scanner sync box
                 press_time = exp.clock.time
-                key_ASCII_silence = keys[0] # If multiple, we take the first key
+                key_ASCII_silence = keys[-1] # If multiple, we take the last key
 
                 # Logging
                 if key_ASCII_silence is not None:
@@ -604,44 +603,31 @@ goodbye_exp_message = stimuli.TextScreen(
     text_size=params["TEXT_SIZE"],
     text_colour=params["WHITE"]
     )
-rest_task = stimuli.TextScreen(
-    params["REST_HEADING"],
-    params["REST_TEXT"],
-    heading_size=params["HEADING_SIZE"],
-    heading_colour=params["WHITE"],
-    text_size=params["TEXT_SIZE"],
-    text_colour=params["WHITE"]
-    )
-# TODO: have two rest instuctions, so two different stimuli, one for task, one for localizer
-# the one for localizer prints update on correctly detected repetitions and the one for task
-# prints updated on correctly counted freq devs. Since this is performance-based, it has to be
-# at the end of the experiment (see localizer!)-
 
 fix_cross = stimuli.FixCross(size = params["FIXATION_CROSS_SIZE"], position = params["FIXATION_CROSS_POSITION"], line_width = params["FIXATION_CROSS_WIDTH"], colour = params["WHITE"])
 wrong     = stimuli.FixCross(size = params["FIXATION_CROSS_SIZE"], position = params["FIXATION_CROSS_POSITION"], line_width = params["FIXATION_CROSS_WIDTH"], colour = params["WRONG"])
 correct   = stimuli.FixCross(size = params["FIXATION_CROSS_SIZE"], position = params["FIXATION_CROSS_POSITION"], line_width = params["FIXATION_CROSS_WIDTH"], colour = params["CORRECT"])
 
-# Get sounds for localizer
+# Get sounds for localizer for directory
 silence = stimuli.Audio(str(filename_null))
 sounds  = {filename: stimuli.Audio(str(filename)) for filename in filenames_sounds}
 
-# Get sounds for main task
-## Initialize the sound generation class
+# Get sounds for main task: initialize soung generation (SoundGen) class
 sound_gen = sg.SoundGen(params["SAMPLE_RATE"], params["TAU"])
 
-# Preloading ensures fast stimuli presentation.
-scanner_text.preload();
-goodbye_exp_message.preload()
+# Preload to ensure fast stimuli presentation.
+blank_canvas.preload(); scanner_text.preload()
 instructions_loc.preload(); instructions_task.preload()
-rest_task.preload()
-fix_cross.preload(); fix_cross.plot(canvas)
-blank_canvas.preload(); canvas.preload()
-wrong.preload(); correct.preload()
+goodbye_exp_message.preload(); wrong.preload(); correct.preload()
 silence.preload()
 for s in sounds.values():
     s.preload()
 
-# Create soundtrack of preloaded sounds for the localizer
+# Plot fixation cross on canvas
+fix_cross.preload(); fix_cross.plot(canvas)
+canvas.preload()
+
+# Create preloaded soundtrack for the localizer
 ## Pair sound ID names (for expyriment presentation) and filenames (for data storage).
 sound_strata = random.sample(list(sounds.items()), params["SOUND_STRATA"])
 sound_strata = dict(sound_strata)
@@ -649,8 +635,8 @@ reversed_strata = {value: key for key, value in sound_strata.items()} # Works be
 soundtrack = create_soundtrack(
     sound_strata = list(sound_strata.values()),
     sequence_len = params["SOUNDS_PER_SEQUENCE"],
-    rep_prob = params["SOUND_REP_PROB"],
-    sequence_no = params["LOC_TRIALS"] * params["LOC_REP"]
+    rep_prob     = params["SOUND_REP_PROB"],
+    sequence_no  = params["LOC_TRIALS"] * params["LOC_REP"]
     )
 
 # 06. RUN THE EXPERIMENT -----------------------------------------------------------------
@@ -658,7 +644,7 @@ control.start(skip_ready_screen=True)
 
 ### ------------------ LOCALIZER  ------------------ ##
 if localizer_on:
-    task_name = "localizer"
+    task_name = "repetition detection"
     
     # Decide randomly to start with silence or sound.
     start_with_sound = random.choice([True, False])
@@ -673,25 +659,25 @@ if localizer_on:
     instructions_loc.clear_surface()
     blank_canvas.present()
 
+    # Start the localizer
     loop = 0
-    # Start the structure of the experiment
     for run in range(params["LOC_REP"]):
 
-        # Initialize the log with unique timestamps.
+        # Initialize the log with unique timestamps
         nw = datetime.now()
         ts = int(nw.timestamp())
         localizer_log = io.OutputFile(suffix = sesh, directory = f'bids_output')
         localizer_log.write("onset;duration;stim_file;response;key;press_time;response_time\n")
         run_performance = {"H": 0, "M": 0, "CR": 0, "FA": 0}
 
-        # Wait for onset of functional sequence
+        # Wait for onset of the MRI sequence. Show the fixation cross at start.
         keyboard.wait(keys=[misc.constants.K_s])
         canvas.present()
 
-        # Mark the start of the functional sequence
+        # Mark the start time of the functional sequence
         run_start_time = exp.clock.time
 
-        # Wait for 4 's' keys from the scanner to synchronize scanner & script onsets.
+        # Wait for 4 's' keys from the scanner to synchronize scanner & script onsets
         keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
         keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
 
@@ -779,7 +765,7 @@ if localizer_on:
         # Wait for the MRI QU to end the run by pressing a key unavailable to the participant.
         keyboard.wait(keys=[misc.constants.K_e])
 
-        # Give encouragement and perfromance update on all runs except the last one.
+        # Give encouragement and performance update on all runs.
         loc_performance = f'Correct: {run_performance["H"]}, Wrong: {run_performance["FA"] + run_performance["M"]}'
         loc_progress    = f'Runs completed: {run+1}/{params["LOC_REP"]}'
         loc_rest = stimuli.TextScreen(
@@ -790,10 +776,15 @@ if localizer_on:
             text_size=params["TEXT_SIZE"],
             text_colour=params["WHITE"]
             )
-
         loc_rest.present()
-        
-    # The end of the localizer task!
+        exp.clock.wait(params["WAIT_TIME"])
+
+        # Wait for the participant to signal they are rested
+        keyboard.wait(keys=params['DETECTION_SYMBOL'])
+        loc_rest.clear_surface()
+        blank_canvas.present()
+
+    # Say goodbye at the end of the localizer task
     goodbye_task_message = stimuli.TextScreen(
         params["TASK_END_HEADING"] + task_name + " task.",
         params["TASK_END_TEXT"],
@@ -804,10 +795,11 @@ if localizer_on:
     )
     goodbye_task_message.present()
     exp.clock.wait(params["WAIT_TIME"])
+    goodbye_task_message.clear_surface()
 
 ### ------------------ MAIN TASK  ------------------ ##
 if main_task_on:
-    task_name = "mainTask"
+    task_name = "counting"
     
     # Present instructions for the counting task.
     # Wait a minimal time needed to read the instructions.
@@ -818,25 +810,6 @@ if main_task_on:
     # Clear instructions and show a blank screen.
     instructions_task.clear_surface()
     blank_canvas.present()
-
-    # Initialize log for tones
-    timDev_log = io.OutputFile(suffix = sesh, directory = f'bids_output')
-    timDev_log.write("onset;duration;type\n")
-    
-    # Initialize log for responses on the frequency deviant counting task
-    freqDev_log = io.OutputFile(suffix = sesh, directory = f'bids_output')
-    freqDev_log.write("onset;duration;trial_type;response_time\n")
-
-    # Wait for onset of the functional sequence for the main task
-    keyboard.wait(keys=[misc.constants.K_s])
-    canvas.present()
-
-    # Mark the start of the functional sequence for the main task
-    task_start_time = exp.clock.time
-
-    # Wait for 4 's' keys from the scanner to synchronize scanner & script onsets.
-    keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
-    keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
 
     # Play the soundtrack over the blocks
     for block in range(no_blocks):
@@ -853,6 +826,25 @@ if main_task_on:
         # Initialize unique timestamps for logs
         nw = datetime.now()
         ts = int(nw.timestamp())
+
+        # Initialize log for tones
+        timDev_log = io.OutputFile(suffix = sesh, directory = f'bids_output')
+        timDev_log.write("onset;duration;type\n")
+        
+        # Initialize log for responses on the frequency deviant counting task
+        freqDev_log = io.OutputFile(suffix = sesh, directory = f'bids_output')
+        freqDev_log.write("onset;duration;trial_type;response_time\n")
+
+        # Wait for onset of the functional sequence for the main task
+        keyboard.wait(keys=[misc.constants.K_s])
+        canvas.present()
+
+        # Mark the start of the functional sequence for the main task
+        task_start_time = exp.clock.time
+
+        # Wait for 4 's' keys from the scanner to synchronize scanner & script onsets.
+        keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
+        keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
 
         # Play all tone sequences: trial by trial
         current_trial_time = exp.clock.time - task_start_time
@@ -887,9 +879,9 @@ if main_task_on:
 
                 # ------ Key-press trials ------ 
                 if keys and keys[0] != 115: # 115 is "s" from scanner sync box
-                    response = keys[0]      # If multiple, we take the first one
+                    response = keys[-1]      # If multiple, we take the last key
                     key_press_time = clock.time / 1000 # Convert to sec
-                    rt = (key_press_time - response_time_start) / 1000 # Convert to sec
+                    rt = np.abs((key_press_time - response_time_start) / 1000) # Convert to sec
 
                     # Show feedback
                     perfo_code, trial_performance = give_feedback_freqCount(
@@ -932,7 +924,7 @@ if main_task_on:
             scanner_text.present()
 
             # Wait for the MRI QU to end the block by pressing a key unavailable to the participant.
-            keyboard.wait(keys = [misc.constants.K_e])
+            keyboard.wait(keys=[misc.constants.K_e])
 
             # When the MRI sequence ends, show text with performance updates
             mainTask_performance = f'Correct: {trial_performance["CORRECT"]}, Wrong: {trial_performance["INCORRECT"]}'
@@ -948,11 +940,12 @@ if main_task_on:
             mainTask_rest.present()
 
             # Wait for the participant to signal they are rested
-            keyboard.wait(keys = params['DETECTION_SYMBOL'])
+            keyboard.wait(keys=params['DETECTION_SYMBOL'])
+            mainTask_rest.clear_surface()
             blank_canvas.present()
 
             # Starting a new block with a key unavailable to the participant
-            keyboard.wait(keys = [misc.constants.K_g])
+            keyboard.wait(keys=[misc.constants.K_g])
 
     # Say thanks at the end of the frequency counting task
     goodbye_task_message = stimuli.TextScreen(
@@ -965,10 +958,12 @@ if main_task_on:
     )
     goodbye_task_message.present()
     exp.clock.wait(params["WAIT_TIME"])
+    goodbye_task_message.clear_surface()
 
 # Say thanks & goodbye to the participant
 goodbye_exp_message.present()
 exp.clock.wait(params["WAIT_TIME"])
+goodbye_exp_message.clear_surface()
 
 #7: END EXPERIMENT
 control.end()
