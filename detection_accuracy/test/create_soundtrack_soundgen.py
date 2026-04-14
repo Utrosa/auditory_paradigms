@@ -3,7 +3,7 @@
 '''
 create_soundtrack_soundgen() module generates sounds as defined in csv.
 '''
-import warnings
+# import warnings #I turned off because it's annoying & for every trial
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -110,13 +110,13 @@ class SoundGen:
         sample_isi = df["isi"].iloc[5] if not df.empty else "N/A"
         sample_iti = df["iti"].iloc[5] if not df.empty else "N/A"
         sample_dev = df["dev"].iloc[5] if not df.empty else "N/A"
-        message = (
-            "\nAssuming input values are in milliseconds."
-            "\nThe script converts TONE_DURATION, ISI, ITI, and DEV to seconds. Verify units in the input dataset."
-            "\nExample of raw (unconverted) values:"
-            f" TONE_DURATION ({tone_duration}), ISI ({sample_isi}), ITI ({sample_iti}) and DEV ({sample_dev})."
-            )
-        warnings.warn(message, UserWarning)
+        # message = (
+        #     "\nAssuming input values are in milliseconds."
+        #     "\nThe script converts TONE_DURATION, ISI, ITI, and DEV to seconds. Verify units in the input dataset."
+        #     "\nExample of raw (unconverted) values:"
+        #     f" TONE_DURATION ({tone_duration}), ISI ({sample_isi}), ITI ({sample_iti}) and DEV ({sample_dev})."
+        #     )
+        # warnings.warn(message, UserWarning)
 
         # Convert to sec (only once)
         tone_duration = tone_duration / 1000

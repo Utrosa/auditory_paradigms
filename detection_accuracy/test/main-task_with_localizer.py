@@ -40,7 +40,7 @@ log_task_format_fStr = "{1};{2};{3};{4}\n"
 #TODO: Specify BIDS-formatted EventFiles for TASK
 
 # 01. PARAMETERS -------------------------------------------------------------------------
-sesID = 25
+sesID = 26
 localizer_on = False
 main_task_on = True
 params = {
@@ -117,15 +117,18 @@ params = {
                         "During these periods, please just relax and stay still.\n\n"
                         "It is very important that you do NOT move your arms, legs, or head until the break.\n\n"
                         "Thank you so much and good luck!\n\n\n"
-                        "Whenever you are ready, press any button to start.",
+                        "Whenever you are ready to start, press any button to start.",
 
     "REST_HEADING" : "BREAK TIME",
-    "REST_TEXT"    : "Please take a moment to rest and move your body as needed.",
+    "REST_TEXT"    : "Please take a moment to rest and move your body as needed.\n\n"
+                     "Whenever you are ready to continue, press any button to start.",
     
     "MRI_HEADING"  : "SCANNER CALIBRATION",
-    "MRI_TEXT"     : "Please remain still for a few moments.\n\nThank you!",
+    "MRI_TEXT"     : "Please remain still for a few moments.\n\n"
+                     "Do NOT move your body or head until the break.\n\n"
+                     "Thank you!",
 
-    "TASK_END_HEADING" : "You have reach the end of the ", 
+    "TASK_END_HEADING" : "You have reached the end of the ", 
     "TASK_END_TEXT"    : "Thank you so much!\n\n",
 
     "END_HEADING"      : "The End of the Experiment", 
@@ -499,40 +502,32 @@ def give_feedback_freqCount(current_event, response, good, bad):
     Returns:
     - perfo_code: The response category (str).
     - trial_performance: Dictionary tracking performance across trials (dict).
-    - feeedback_status: Indicates whether feedback is given or not (boolean).
     '''
     perfo_code = None
 
-    # ----- No response during ITI ----- 
-    if response is None:
-        return None, trial_performance
+    # ----- Silent trials
+    if np.isnan(current_event):
+        current_event = np.nan_to_num(current_event)
+    
+    # Correct the response for MRI buttons: 1 is 0 devs, ... etc.
+    response = response - 1
 
-    # ----- Response during ITI ----- 
+    # Ensure that you are comparing variables of the same type (str)
+    print(f"CURRENT EVENT: {current_event}")
+    current_event_str = str((int(current_event)))
+    response_str = chr(response)
+
+    # ----- Correct count -----
+    if current_event_str == response_str:
+        good.present(clear = False, log_event_tag = True)
+        trial_performance["CORRECT"] += 1
+        perfo_code = "CORRECT"
+    
+    # ----- Incorrect count ----- 
     else:
-        
-        # Silent trials
-        if np.isnan(current_event):
-            current_event = np.nan_to_num(current_event)
-        
-        # Correct the response for MRI buttons
-        # 1 is 0 devs, 2 is 1 dev, ...
-        response = response - 1
-
-        # Ensure that you are comparing variables of the same type (str)
-        current_event_str = str((int(current_event)))
-        response_str = chr(response)
-
-        # ----- Correct count -----
-        if current_event_str == response_str:
-            good.present(clear = False, log_event_tag = True)
-            trial_performance["YES"] += 1
-            perfo_code = "CORRECT"
-        
-        # ----- Incorrect count ----- 
-        else:
-            bad.present(clear = False, log_event_tag = True)
-            trial_performance["NO"] += 1
-            perfo_code = "INCORRECT"
+        bad.present(clear = False, log_event_tag = True)
+        trial_performance["INCORRECT"] += 1
+        perfo_code = "INCORRECT"
 
     return perfo_code, trial_performance
 
@@ -782,17 +777,21 @@ if localizer_on:
         scanner_text.present()
 
         # Wait for the MRI QU to end the run by pressing a key unavailable to the participant.
-        keyboard.wait(keys = [misc.constants.K_e])
+        keyboard.wait(keys=[misc.constants.K_e])
 
         # Give encouragement and perfromance update on all runs except the last one.
-        performance = f'Correct: {run_performance["H"]}, Wrong: {run_performance["FA"] + run_performance["M"]}'
-        progress    = f'Runs completed: {run+1}/{params["LOC_REP"]}'
-        rest = stimuli.TextScreen(
-                params["REST_HEADING"], 
-                performance + f"\n\n{progress}" + "\n\n" + params["REST_TEXT"],
-                heading_size = params["HEADING_SIZE"], 
-                text_size = params["TEXT_SIZE"])
-        rest.present()
+        loc_performance = f'Correct: {run_performance["H"]}, Wrong: {run_performance["FA"] + run_performance["M"]}'
+        loc_progress    = f'Runs completed: {run+1}/{params["LOC_REP"]}'
+        loc_rest = stimuli.TextScreen(
+            params["REST_HEADING"], 
+            loc_performance + f"\n\n{loc_progress}" + "\n\n" + params["REST_TEXT"],
+            heading_size=params["HEADING_SIZE"],
+            heading_colour=params["WHITE"],
+            text_size=params["TEXT_SIZE"],
+            text_colour=params["WHITE"]
+            )
+
+        loc_rest.present()
         
     # The end of the localizer task!
     goodbye_task_message = stimuli.TextScreen(
@@ -805,7 +804,6 @@ if localizer_on:
     )
     goodbye_task_message.present()
     exp.clock.wait(params["WAIT_TIME"])
-    canvas.clear()
 
 ### ------------------ MAIN TASK  ------------------ ##
 if main_task_on:
@@ -817,14 +815,10 @@ if main_task_on:
     exp.clock.wait(params["WAIT_TIME"])
     keyboard.wait(keys=params['DETECTION_SYMBOL'])
 
-    # Clear and present a blank screen.
+    # Clear instructions and show a blank screen.
     instructions_task.clear_surface()
     blank_canvas.present()
 
-    # Initialize unique timestamps for logs.
-    nw = datetime.now()
-    ts = int(nw.timestamp())
-    
     # Initialize log for tones
     timDev_log = io.OutputFile(suffix = sesh, directory = f'bids_output')
     timDev_log.write("onset;duration;type\n")
@@ -850,69 +844,88 @@ if main_task_on:
         # Correct for zero-indexing
         block_idx = block + 1
 
-        # Select only the part of the dataframe relevant for the current trial
+        # Select the part of the dataframe relevant for the current block
         df_block = df[df["block_no"] == block_idx]
 
         # Check if quit key is pressed
         keyboard.check(keys=[misc.constants.K_y])
 
-        # Generate the soundtrack of the experimental session
+        # Initialize unique timestamps for logs
+        nw = datetime.now()
+        ts = int(nw.timestamp())
+
+        # Play all tone sequences: trial by trial
         current_trial_time = exp.clock.time - task_start_time
         for soundtrack, ITI, freq_dev_no, trial_log in sound_gen.generate_soundtrack(df_block, current_trial_time, params["MAX_AMPLITUDE"], params["NUM_HARMONICS"],  params["TONE_DURATION"],  params["HARMONIC_FACTOR"], params["TONE_LOUDNESS"]):
 
-            # Refresh the screen TODO: if feedback was presented
+            # Refresh the screen
             canvas.present()
             
             # Check if quit key is pressed during the trial
             keyboard.check(keys=[misc.constants.K_y])
             
-
-            # Clearing any key presses before playing the sound 
+            # Clearing any key presses before playing the sounds
             keyboard.clear()
 
             # Play the soundtrack
             sd.play(soundtrack, samplerate = params["SAMPLE_RATE"])
 
-            # Wait until the end
+            # Wait until the end of each trial
             sd.wait()
 
             # Initialize variables for logging task performance
-            duration = ITI
             response, rt = None, None
+            trial_performance   = {"CORRECT": 0, "INCORRECT": 0}
+            max_response_time   = ITI
             response_time_start = clock.time
-            trial_performance = {"YES": 0, "NO": 0}
 
-            # Check for key button responses with max response time equal to ITI
-            while clock.time - response_time_start < duration:
+            # Check for key presses with max response time equal to ITI
+            while clock.time - response_time_start < max_response_time:
                 
-                key = keyboard.check(keys=params["DETECTION_SYMBOL"])
-                
-                # If key is pressed
-                if key is not None:
-                    response = key
-                    press_time = clock.time / 1000 # Convert to sec
-                    rt = (press_time - response_time_start) / 1000 # Convert to sec
+                # Non-blocking function to check for pressed keys
+                keys = keyboard.read_out_buffered_keys()
+
+                # ------ Key-press trials ------ 
+                if keys and keys[0] != 115: # 115 is "s" from scanner sync box
+                    response = keys[0]      # If multiple, we take the first one
+                    key_press_time = clock.time / 1000 # Convert to sec
+                    rt = (key_press_time - response_time_start) / 1000 # Convert to sec
 
                     # Show feedback
                     perfo_code, trial_performance = give_feedback_freqCount(
-                        freq_dev_no, 
-                        response,
-                        correct,
-                        wrong
+                        freq_dev_no, # Actual number of frequency deviants
+                        response,    # Participant's count
+                        correct,     # Fixation cross for correct responses
+                        wrong        # Fixation cross for incorrect responses
                     )
 
-                    # Log
-                    freqDev_log.write(f"{press_time};100;{chr(response)};{rt}\n")
+                    # Log with correction of the response for MRI buttons (1 is 0 devs, ...)
+                    response = response - 1
+                    freqDev_log.write(f"{key_press_time};100;{chr(response - 1)};{rt}\n")
 
-            # If key is NOT pressed, log once the response time ends
-            freqDev_log.write(f"{np.nan};{np.nan};{key};{np.nan}\n")
+            # ------ No-key trials ------
+            if not response:
+                freqDev_log.write(f"{np.nan};{np.nan};{response};{np.nan}\n")
 
-            # Write relevant info to log
-            current_trial_time = exp.clock.time - task_start_time
+            # Write relevant info to log for tones
             timDev_log.write(f"{trial_log}")
+
+            # Update trial start time
+            current_trial_time = exp.clock.time - task_start_time
+        
+        # Rename the logs according to BIDS standard
+        timDev_log.rename(f"sub-{exp.subject:02d}_ses-{sesh}_task-timDev_ts-{ts}_events.tsv")
+        freqDev_log.rename(f"sub-{exp.subject:02d}_ses-{sesh}_task-freqDev_ts-{ts}_events.tsv")
+
+        # Save the logs on block level!
+        timDev_log.save()
+        freqDev_log.save()
         
         # At the end of each block, give time to rest (works as inter-block-interval)
-        if block != len(no_blocks) - 1:
+        if block_idx < no_blocks:
+
+            # Clearing any key presses
+            keyboard.clear()
 
             # If the task ends before the MRI protocol. Inform the participant to keep calm and remain still.
             blank_canvas.present()
@@ -921,29 +934,27 @@ if main_task_on:
             # Wait for the MRI QU to end the block by pressing a key unavailable to the participant.
             keyboard.wait(keys = [misc.constants.K_e])
 
-            # Show rest text with performance update
-            performance = f'Correct: {trial_performance["YES"]}, Wrong: {trial_performance["NO"]}'
-            progress    = f'Runs completed: {block+1}/{no_blocks}'
-            rest = stimuli.TextScreen(
+            # When the MRI sequence ends, show text with performance updates
+            mainTask_performance = f'Correct: {trial_performance["CORRECT"]}, Wrong: {trial_performance["INCORRECT"]}'
+            mainTask_progress    = f'Blocks completed: {block_idx} / {no_blocks}'
+            mainTask_rest = stimuli.TextScreen(
                 params["REST_HEADING"], 
-                performance + f"\n\n{progress}" + "\n\n" + params["REST_TEXT"],
-                heading_size = params["HEADING_SIZE"], 
-                text_size = params["TEXT_SIZE"])
-            keyboard.wait(keys=params['DETECTION_SYMBOL'])
+                mainTask_performance + f"\n\n{mainTask_progress}" + "\n\n" + params["REST_TEXT"],
+                heading_size=params["HEADING_SIZE"],
+                heading_colour=params["WHITE"],
+                text_size=params["TEXT_SIZE"],
+                text_colour=params["WHITE"]
+                )
+            mainTask_rest.present()
+
+            # Wait for the participant to signal they are rested
+            keyboard.wait(keys = params['DETECTION_SYMBOL'])
             blank_canvas.present()
 
-            # Starting a new block with a key unavailable to the participant.
+            # Starting a new block with a key unavailable to the participant
             keyboard.wait(keys = [misc.constants.K_g])
 
-        # Rename the logs according to BIDS standard
-        timDev_log.rename(f"sub-{exp.subject:02d}_ses-{sesh}_task-timDev_ts-{ts}_events.tsv")
-        freqDev_log.rename(f"sub-{exp.subject:02d}_ses-{sesh}_task-freqDev_ts-{ts}_events.tsv")
-
-        # Save the logs on block level!
-        timDev_log.save()
-        freqDev_log.save()
-
-    # The end of the frequency counting task!
+    # Say thanks at the end of the frequency counting task
     goodbye_task_message = stimuli.TextScreen(
         params["TASK_END_HEADING"] + task_name + " task.",
         params["TASK_END_TEXT"],
@@ -954,7 +965,6 @@ if main_task_on:
     )
     goodbye_task_message.present()
     exp.clock.wait(params["WAIT_TIME"])
-    canvas.clear()
 
 # Say thanks & goodbye to the participant
 goodbye_exp_message.present()
