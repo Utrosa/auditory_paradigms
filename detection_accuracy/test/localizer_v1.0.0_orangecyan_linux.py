@@ -62,8 +62,8 @@ params = {
 	# Colors in RGB
 	"BLACK"   : (0, 0, 0),	     # screen background
 	"WHITE"   : (255, 255, 255), # fixation cross
-	"CORRECT" : (0,255,255),     # cyan
-	"WRONG"   : (255,165,0),     # orange
+	"CORRECT" : (0, 255, 255),   # cyan
+	"WRONG"   : (255, 155, 93),  # orange
 
 	# Sound
 	"SOUND_STRATA"     : 84,   # the total amount of available sounds

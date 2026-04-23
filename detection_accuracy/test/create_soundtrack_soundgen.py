@@ -103,16 +103,15 @@ class SoundGen:
         :yield: final_sequence: An array of audio samples, representing harmonic a complex tone sequence.
         """
         current_time = current_time / 1000
-        print(f"\nStarting time: {current_time} sec.")
         current_time = current_time * self.sample_rate
 
         # Get number of trials per block
         no_trials = len(df["trial_no"].unique())
         
         # Reminder to yourself that we're assuming msec as unit for ISI, ITI, and DEV
-        sample_isi = df["isi"].iloc[5] if not df.empty else "N/A"
-        sample_iti = df["iti"].iloc[5] if not df.empty else "N/A"
-        sample_dev = df["dev"].iloc[5] if not df.empty else "N/A"
+        sample_isi = df["isi"].iloc[0] if not df.empty else "N/A"
+        sample_iti = df["iti"].iloc[0] if not df.empty else "N/A"
+        sample_dev = df["dev"].iloc[0] if not df.empty else "N/A"
         # message = (
         #     "\nAssuming input values are in milliseconds."
         #     "\nThe script converts TONE_DURATION, ISI, ITI, and DEV to seconds. Verify units in the input dataset."
@@ -127,7 +126,6 @@ class SoundGen:
         # Loop through all trials in the dataframe
         # Each trial is a linear combination of parameters
         for trial in df.itertuples():
-            print(trial)
 
             # Initialize the sequence, log and count of frequency devs.
             sequence = []
@@ -264,15 +262,14 @@ class SoundGen:
                             tone_type = f"fStd-{int(trial.base_freq)}Hz_fDev-{fDev}Hz_fDevLoc-{int(fDevLoc)}_type-fDevtStd"
                 else:
                     tone_type = "silence"
-                print("\n\n")
-                print(tone_type)
 
-                log_format = f"{onset_sec};{tone_duration};{trial.dev_type};{tone_type}\n"
+                log_format = f"{onset_sec}\t{tone_duration}\t{tone_type}\n"
                 sequence_log = sequence_log + log_format
                 
                 # Add the sound to the sequence
                 sequence.append(ramped_sound)
                 current_time += tone_samples
+
                 # ----------------- Adding ISI --------------------
                 current_isi = isi_samples
 
@@ -331,10 +328,10 @@ class SoundGen:
 if __name__ == "__main__":
     
     # Set the parameters
-    sesID = 25
+    sesID = 27
     params = {
         "PROJECT_ROOT"    : "/home/mutrosa/Documents/projects/auditory_paradigms/detection_accuracy/test",  
-        "TONE_LOUDNESS"   : 70,     # dB SPL
+        "TONE_LOUDNESS"   : 50,     # dB SPL
         "TONE_DURATION"   : 50,     # msec
         "NUM_HARMONICS"   : 10,     # Number of harmonics
         "HARMONIC_FACTOR" : 0.8,    # Harmonic amplitude decay factor

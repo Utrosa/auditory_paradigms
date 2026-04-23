@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-# Time-stamp: <14-04-2026, m.utrosa@bcbl.eu>
+# Time-stamp: <23-04-2026, m.utrosa@bcbl.eu>
 '''
 Main experimental script
 - runs localizer
@@ -24,22 +24,23 @@ from expyriment import design, control, stimuli, misc, io
 import create_soundtrack_soundgen as sg
 
 # Specify BIDS-formatted EventFiles for localizer
-## onset [msec], duration [msec], stim_file [wav], response [HIT, ...]
-## key [chr(ASCII)], press_time [msec], RT [msec]
-log_loc_format_fStr  = "{0:.3f};{1:.3f};{2};{3};{4};{5:.3f};{6:.3f}\n"
-log_loc_format_NaNs  = "{0:.3f};{1:.3f};{2};{3};{4};{5};{6}\n"
-log_task_format_fStr = "{1};{2};{3};{4}\n"
+## onset [sec], duration [sec], stim_file [wav],
+## key [chr(ASCII)], RT [sec]
+log_loc_format_fStr  = "{0:.3f}\t{1:.3f}\t{2}\t{3}\t{4:.3f}\n"
+log_loc_format_NaNs  = "{0:.3f}\t{1:.3f}\t{2}\t{3}\t{4}\n"
+log_task_format_fStr = "{1}\t{2}\t{3}\t{4}\n"
 
 # 01. PARAMETERS -------------------------------------------------------------------------
-sesID = 26
-control.set_develop_mode(on=True) # TODO: set to False when running the real experiment
-localizer_on = False
+sesh = input("Enter the session number with 0 prefixed (e.g.: 01, 02):")
+sesID = int(sesh)
+control.set_develop_mode(on=False)
+localizer_on = True
 main_task_on = True
 params = {
 
     # Directories
     "PROJECT_ROOT" : "/home/mutrosa/Documents/projects/auditory_paradigms/detection_accuracy/test",
-    "AUDIO_ROOT" : "/home/mutrosa/Documents/projects/auditory_paradigms/localizer/",
+    "AUDIO_ROOT"   : "/home/mutrosa/Documents/projects/auditory_paradigms/localizer/",
     "AUDIOFILE_REGEX" : "**/*.wav",
     
     # Experiment structure
@@ -54,18 +55,18 @@ params = {
     "CANVAS_SIZE"             : (1024, 768), # MRI monitor resolution.
     "FIXATION_CROSS_SIZE"     : (40, 40),
     "FIXATION_CROSS_POSITION" : (0, 0),
-    "FIXATION_CROSS_WIDTH"    : 4,
-    "HEADING_SIZE"            : 14, #TODO: make larger once developping is over 
-    "TEXT_SIZE"               : 12, #TODO: make larger once developping is over
+    "FIXATION_CROSS_WIDTH"    : 5,
+    "HEADING_SIZE"            : 30, 
+    "TEXT_SIZE"               : 25, 
     
     # Colors in RGB
     "BLACK"   : (0, 0, 0),       # screen background
     "WHITE"   : (255, 255, 255), # fixation cross
-    "CORRECT" : (0, 255, 255),   # cyan
-    "WRONG"   : (255, 165, 0),   # orange
+    "CORRECT" : (70, 255, 255),  # cyan; color contrast on black is super (17.01)
+    "WRONG"   : (255, 234, 0),   # yellow; color contrast on black is super (17.02)
     
     # Audio for task
-    "TONE_LOUDNESS"   : 70,     # dB SPL
+    "TONE_LOUDNESS"   : 75,     # dB SPL
     "TONE_DURATION"   : 50,     # msec
     "NUM_HARMONICS"   : 10,     # Number of harmonics
     "HARMONIC_FACTOR" : 0.8,    # Harmonic amplitude decay factor
@@ -92,32 +93,34 @@ params = {
                         "After you hear the last sound of the series, press 0, 1, 2 or 3.\n"
                         "Try to be as fast and as accurate as possible.\n\n"
                         "If you counted well and were fast enough, the cross will change color to cyan.\n"
-                        "If you made a mistake or were too slow, the cross will change color to orange.\n\n"
+                        "If you made a mistake or were too slow, the cross will change color to yellow.\n\n"
+                        "Sometimes, there will be no sound for a while.\n"
+                        "During these periods, please just relax and stay still.\n\n"
                         "We will repeat this task four times.\n"
                         "You will have short breaks in between.\n\n\n"
                         "It is very important that you do NOT move your arms, legs, or head until the break.\n\n"
                         "Thank you and good luck!\n\n\n"
-                        "Whenever you are ready, press any button to start.",
+                        "Whenever you are ready, press any button.",
     "INTRO_TEXT_LOC"  :  f"When the experiment starts, you will see a white cross in the center of the screen.\n"
                         "Please look at the cross for the entire duration of the task.\n\n"
                         "You will hear a series of short sounds (animals, speech, or tools).\n"
                         "Sometimes, the same sound will play twice in a row.\n"
                         "When you hear a sound repeat, press any button as fast as you can.\n\n"
                         "If you you were correct and fast enough, the cross will change color to cyan.\n"
-                        "If you made a mistake or were too slow, the cross will change color to orange.\n\n"
+                        "If you made a mistake or were too slow, the cross will change color to yellow.\n\n"
                         "Each sound series will be separated by a longer silent period.\n"
                         "During these periods, please just relax and stay still.\n\n"
                         "It is very important that you do NOT move your arms, legs, or head until the break.\n\n"
                         "Thank you so much and good luck!\n\n\n"
-                        "Whenever you are ready to start, press any button to start.",
+                        "Whenever you are ready to start, press any button.",
 
     "REST_HEADING" : "BREAK TIME",
-    "REST_TEXT"    : "Please take a moment to rest and move your body as needed.\n\n"
-                     "Whenever you are ready to continue, press any button to start.",
+    "REST_TEXT"    : "\n\nPlease take a moment to rest and move your body as needed.\n\n"
+                     "Whenever you are ready to continue, press any button.",
     
     "MRI_HEADING"  : "SCANNER CALIBRATION",
     "MRI_TEXT"     : "Please remain still for a few moments.\n\n"
-                     "Do NOT move your body or head until the break.\n\n"
+                     "Remember NOT to move your body or head until the break.\n\n"
                      "Thank you!",
 
     "TASK_END_HEADING" : "You have reached the end of the ", 
@@ -203,7 +206,7 @@ def create_soundtrack(sound_strata, sequence_len, rep_prob, sequence_no):
 
     return sequences
 
-def compute_durations(pars, clock_start, clock_end, verbose=True):
+def compute_durations(pars, clock_start, clock_end, verbose=False):
     '''
     Computes the predicted and actual durations of sound or silence parts in trials.
 
@@ -234,8 +237,8 @@ def give_feedback(current_sound, position_in_sequence, response, good, bad):
     - current_sound: The name of the sound that is currently being played (str).
     - position_in_sequence: The index of the sound in the current sound sequence (int).
     - response: The identity of the key pressed in ASCII code.
-    - good: A class implementing fixation cross for correct responses (green/cyan).
-    - bad: A class implementing fixation cross for wrong responses (red/orange).
+    - good: A class implementing fixation cross for correct responses (cyan).
+    - bad: A class implementing fixation cross for wrong responses (yellow).
 
     Returns:
     - perfo_code: The response category (str).
@@ -283,8 +286,8 @@ def play_sounds(sequence, sound_duration, exp, canvas, fixation, correct, wrong,
     - exp: A class implementing a basic experiment in expyriment.
     - canvas: A class implementing a canvas stimulus in expyriment.
     - fixation: A class implementing a general fixation cross in expyriment (white).
-    - correct: A class implementing fixation cross for correct responses (green/cyan).
-    - wrong: A class implementing fixation cross for incorrect responses (red/orange).  
+    - correct: A class implementing fixation cross for correct responses (cyan).
+    - wrong: A class implementing fixation cross for incorrect responses (yellow).  
     - keyboard: A class implementing a keyboard input in expyriment.
     - response_keys: A list of accepted keys for responding (depends on the chosen response pad).
     - log_events_sound: A file containing information about events, following BIDS specification.
@@ -338,9 +341,7 @@ def play_sounds(sequence, sound_duration, exp, canvas, fixation, correct, wrong,
                         "onset":      np.abs(audio_start - run_start_time) / 1000,
                         "duration":   sound_duration / 1000, # dummy duration
                         "stim_file":  cs.name,
-                        "response":   perf_code,
-                        "key":        chr(key_ASCII_audio),
-                        "press_time": np.abs(press_time - run_start_time) / 1000,
+                        "response":   chr(key_ASCII_audio),
                         "RT":         np.abs(press_time - audio_start) / 1000
                     }
 
@@ -355,8 +356,6 @@ def play_sounds(sequence, sound_duration, exp, canvas, fixation, correct, wrong,
                                                 key_log_entry["duration"],
                                                 key_log_entry["stim_file"],
                                                 key_log_entry["response"],
-                                                key_log_entry["key"],
-                                                key_log_entry["press_time"],
                                                 key_log_entry["RT"]
                                     ))
 
@@ -375,10 +374,8 @@ def play_sounds(sequence, sound_duration, exp, canvas, fixation, correct, wrong,
                 np.abs(run_start_time - audio_start) / 1000, # onset
                 np.abs(audio_end - audio_start) / 1000,      # duration
                 cs.name,                                     # stim_file
-                perf_code,                                   # response
-                "n/a",                                       # key
-                "n/a",                                       # press time
-                "n/a"                                        # RT
+                np.nan,                                      # response
+                np.nan                                       # RT
             ))
         
         # Update feedback tracking and sequence record
@@ -442,9 +439,7 @@ def play_silence(null_sound, sound_duration, exp, null_number, keyboard, respons
                         "onset": np.abs(null_start - run_start_time) / 1000,
                         "duration": sound_duration / 1000, # dummy duration
                         "stim_file": "null_event.wav",
-                        "response": "n/a",
-                        "key": chr(key_ASCII_silence),  
-                        "press_time": np.abs(press_time - run_start_time) / 1000,
+                        "response": chr(key_ASCII_silence),  
                         "RT": np.abs(press_time - null_start) / 1000
                     }
 
@@ -459,8 +454,6 @@ def play_silence(null_sound, sound_duration, exp, null_number, keyboard, respons
                                                 key_log_entry["duration"],
                                                 key_log_entry["stim_file"],
                                                 key_log_entry["response"],
-                                                key_log_entry["key"],
-                                                key_log_entry["press_time"],
                                                 key_log_entry["RT"]
                                     ))
 
@@ -470,10 +463,8 @@ def play_silence(null_sound, sound_duration, exp, null_number, keyboard, respons
                 np.abs(run_start_time - null_start) / 1000, # onset
                 np.abs(null_end - null_start) / 1000,       # duration
                 "null_event.wav",                           # stim_file
-                "n/a",                                      # response
-                "n/a",                                      # key
-                "n/a",                                      # press time
-                "n/a"                                       # RT
+                np.nan,                                     # response
+                np.nan                                      # RT
             ))
     
     silence_end = exp.clock.time
@@ -505,7 +496,6 @@ def give_feedback_freqCount(current_event, response, good, bad):
     response = response - 1
 
     # Ensure that you are comparing variables of the same type (str)
-    print(f"CURRENT EVENT: {current_event}")
     current_event_str = str((int(current_event)))
     response_str = chr(response)
 
@@ -552,7 +542,6 @@ for col in list_cols:
     )
 
 # 04. INITIALIZE THE EXPERIMENT ----------------------------------------------------------
-sesh = input("Enter the session number with leading zero (e.g.: 01, 02, ...):")
 exp  = design.Experiment(name = "devLoc") # give a name following BIDS specification
 control.initialize(exp)
 
@@ -635,6 +624,156 @@ soundtrack = create_soundtrack(
 # 06. RUN THE EXPERIMENT -----------------------------------------------------------------
 control.start(skip_ready_screen=True)
 
+### ------------------ MAIN TASK  ------------------ ##
+if main_task_on:
+    task_name = "counting"
+    
+    # Present instructions for the counting task.
+    # Wait a minimal time needed to read the instructions.
+    instructions_task.present()
+    exp.clock.wait(params["WAIT_TIME"])
+    keyboard.wait(keys=params['DETECTION_SYMBOL'])
+
+    # Clear instructions and show a blank screen.
+    instructions_task.clear_surface()
+    blank_canvas.present()
+
+    # Play the soundtrack over the blocks
+    for block in range(no_blocks):
+
+        # Correct for zero-indexing
+        block_idx = block + 1
+
+        # Select the part of the dataframe relevant for the current block
+        df_block = df[df["block_no"] == block_idx]
+
+        # Check if quit key is pressed
+        keyboard.check(keys=[misc.constants.K_y])
+
+        # Initialize unique timestamps for logs
+        nw = datetime.now()
+        ts = int(nw.timestamp())
+
+        # Initialize log for tones
+        timDev_log = io.OutputFile(suffix = sesh, directory = f'bids_output')
+        timDev_log.write("onset\tduration\ttrial_type\n")
+        
+        # Initialize log for responses on the frequency deviant counting task
+        freqDev_log = io.OutputFile(suffix = sesh, directory = f'bids_output')
+        freqDev_log.write("onset\tduration\ttrial_type\tresponse_time\n")
+
+        # Wait for onset of the functional sequence for the main task
+        keyboard.wait(keys=[misc.constants.K_s])
+        canvas.present()
+
+        # Mark the start of the functional sequence for the main task
+        task_start_time = exp.clock.time
+
+        # Wait for 4 's' keys from the scanner to synchronize scanner & script onsets.
+        keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
+        keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
+
+        # Play all tone sequences: trial by trial
+        block_start_time = exp.clock.time - task_start_time
+        for soundarray, ITI, freq_dev_no, trial_log in sound_gen.generate_soundtrack(df_block, block_start_time, params["MAX_AMPLITUDE"], params["NUM_HARMONICS"],  params["TONE_DURATION"],  params["HARMONIC_FACTOR"], params["TONE_LOUDNESS"]):
+
+            # Refresh the screen
+            canvas.present()
+
+            # Check if quit key is pressed during the trial
+            keyboard.check(keys=[misc.constants.K_y])
+
+            # Play the soundtrack
+            sd.play(soundarray, samplerate = params["SAMPLE_RATE"])
+
+            # Wait until the end of each trial
+            sd.wait()
+
+            # Initialize variables for logging task performance
+            response, rt = None, None
+            trial_performance   = {"CORRECT": 0, "INCORRECT": 0}
+            max_response_time   = ITI
+            response_time_start = clock.time
+
+            # Check for key presses with max response time equal to ITI
+            while clock.time - response_time_start < max_response_time:
+                
+                # Non-blocking function to check for pressed keys
+                keys = keyboard.read_out_buffered_keys()
+
+                # ------ Key-press trials ------ 
+                if keys and keys[0] != 115: # 115 is "s" from scanner sync box
+                    response = keys[-1]      # If multiple, we take the last key
+                    key_press_time = clock.time / 1000 # Convert to sec
+                    rt = np.abs((key_press_time - response_time_start) / 1000) # Convert to sec
+
+                    # Show feedback
+                    perfo_code, trial_performance = give_feedback_freqCount(
+                        freq_dev_no, # Actual number of frequency deviants
+                        response,    # Participant's count
+                        correct,     # Fixation cross for correct responses
+                        wrong        # Fixation cross for incorrect responses
+                    )
+
+                    # Log with correction of the response for MRI buttons (1 is 0 devs, ...)
+                    response = response - 1
+                    freqDev_log.write(f"{key_press_time}\t100\t{chr(response)}\t{rt}\n")
+
+            # Write relevant info to log for tones
+            timDev_log.write(f"{trial_log}")
+        
+        # Rename the logs according to BIDS standard
+        timDev_log.rename(f"sub-{exp.subject:02d}_ses-{sesh}_task-timDev_ts-{ts}_events.tsv")
+        freqDev_log.rename(f"sub-{exp.subject:02d}_ses-{sesh}_task-freqDev_ts-{ts}_events.tsv")
+
+        # Save the logs on block level!
+        timDev_log.save()
+        freqDev_log.save()
+        
+        # Clearing any key presses
+        keyboard.clear()
+
+        # Check if quit key is pressed
+        keyboard.check(keys=[misc.constants.K_y])
+
+        # If the task ends before the MRI protocol. Inform the participant to keep calm and remain still.
+        blank_canvas.present()
+        scanner_text.present()
+
+        # Wait for the MRI QU to end the block by pressing a key unavailable to the participant.
+        keyboard.wait(keys=[misc.constants.K_e])
+
+        # When the MRI sequence ends, show text with performance updates
+        mainTask_performance = f'Correct: {trial_performance["CORRECT"]}, Wrong: {trial_performance["INCORRECT"]}'
+        mainTask_progress    = f'Blocks completed: {block_idx} / {no_blocks}'
+        mainTask_rest = stimuli.TextScreen(
+            params["REST_HEADING"], 
+            mainTask_performance + f"\n\n{mainTask_progress}" + "\n\n" + params["REST_TEXT"],
+            heading_size=params["HEADING_SIZE"],
+            heading_colour=params["WHITE"],
+            text_size=params["TEXT_SIZE"],
+            text_colour=params["WHITE"]
+            )
+        mainTask_rest.present()
+
+        # Wait for the participant to signal they are rested
+        keyboard.wait(keys=params['DETECTION_SYMBOL'])
+        mainTask_rest.clear_surface()
+        blank_canvas.present()
+
+    # Say thanks at the end of the frequency counting task
+    goodbye_task_message = stimuli.TextScreen(
+        params["TASK_END_HEADING"] + task_name + " task.",
+        params["TASK_END_TEXT"],
+        heading_size=params["HEADING_SIZE"],
+        heading_colour=params["WHITE"],
+        text_size=params["TEXT_SIZE"],
+        text_colour=params["WHITE"]
+    )
+    goodbye_task_message.present()
+    exp.clock.wait(params["WAIT_TIME"])
+    goodbye_task_message.clear_surface()
+
 ### ------------------ LOCALIZER  ------------------ ##
 if localizer_on:
     task_name = "repetition detection"
@@ -660,10 +799,11 @@ if localizer_on:
         nw = datetime.now()
         ts = int(nw.timestamp())
         localizer_log = io.OutputFile(suffix = sesh, directory = f'bids_output')
-        localizer_log.write("onset;duration;stim_file;response;key;press_time;response_time\n")
+        localizer_log.write("onset\tduration\tstim_file\ttrial_type\tresponse_time\n")
         run_performance = {"H": 0, "M": 0, "CR": 0, "FA": 0}
 
         # Wait for onset of the MRI sequence. Show the fixation cross at start.
+        keyboard.clear()
         keyboard.wait(keys=[misc.constants.K_s])
         canvas.present()
 
@@ -709,7 +849,7 @@ if localizer_on:
                             keyboard,
                             params["DETECTION_SYMBOL"],
                             localizer_log)
-                print("SOUND FIRST:"); compute_durations(params, t1, t2, True); compute_durations(params, t3, t4, True)
+                # print("SOUND FIRST"); compute_durations(params, t1, t2, True); compute_durations(params, t3, t4, True)
                 
                 # Refresh the screen
                 canvas.present()
@@ -739,7 +879,7 @@ if localizer_on:
                             keyboard,
                             params["DETECTION_SYMBOL"],
                             localizer_log)
-                print("SILENCE FIRST:"); compute_durations(params, t5, t6, True); compute_durations(params, t7, t8, True)
+                # print("SILENCE FIRST"); compute_durations(params, t5, t6, True); compute_durations(params, t7, t8, True)
 
                 # Refresh the screen
                 canvas.present()
@@ -778,162 +918,6 @@ if localizer_on:
         blank_canvas.present()
 
     # Say goodbye at the end of the localizer task
-    goodbye_task_message = stimuli.TextScreen(
-        params["TASK_END_HEADING"] + task_name + " task.",
-        params["TASK_END_TEXT"],
-        heading_size=params["HEADING_SIZE"],
-        heading_colour=params["WHITE"],
-        text_size=params["TEXT_SIZE"],
-        text_colour=params["WHITE"]
-    )
-    goodbye_task_message.present()
-    exp.clock.wait(params["WAIT_TIME"])
-    goodbye_task_message.clear_surface()
-
-### ------------------ MAIN TASK  ------------------ ##
-if main_task_on:
-    task_name = "counting"
-    
-    # Present instructions for the counting task.
-    # Wait a minimal time needed to read the instructions.
-    instructions_task.present()
-    exp.clock.wait(params["WAIT_TIME"])
-    keyboard.wait(keys=params['DETECTION_SYMBOL'])
-
-    # Clear instructions and show a blank screen.
-    instructions_task.clear_surface()
-    blank_canvas.present()
-
-    # Play the soundtrack over the blocks
-    for block in range(no_blocks):
-
-        # Correct for zero-indexing
-        block_idx = block + 1
-
-        # Select the part of the dataframe relevant for the current block
-        df_block = df[df["block_no"] == block_idx]
-
-        # Check if quit key is pressed
-        keyboard.check(keys=[misc.constants.K_y])
-
-        # Initialize unique timestamps for logs
-        nw = datetime.now()
-        ts = int(nw.timestamp())
-
-        # Initialize log for tones
-        timDev_log = io.OutputFile(suffix = sesh, directory = f'bids_output')
-        timDev_log.write("onset;duration;type\n")
-        
-        # Initialize log for responses on the frequency deviant counting task
-        freqDev_log = io.OutputFile(suffix = sesh, directory = f'bids_output')
-        freqDev_log.write("onset;duration;trial_type;response_time\n")
-
-        # Wait for onset of the functional sequence for the main task
-        keyboard.wait(keys=[misc.constants.K_s])
-        canvas.present()
-
-        # Mark the start of the functional sequence for the main task
-        task_start_time = exp.clock.time
-
-        # Wait for 4 's' keys from the scanner to synchronize scanner & script onsets.
-        keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
-        keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
-
-        # Play all tone sequences: trial by trial
-        block_start_time = exp.clock.time - task_start_time
-        for soundtrack, ITI, freq_dev_no, trial_log in sound_gen.generate_soundtrack(df_block, block_start_time, params["MAX_AMPLITUDE"], params["NUM_HARMONICS"],  params["TONE_DURATION"],  params["HARMONIC_FACTOR"], params["TONE_LOUDNESS"]):
-
-            # Refresh the screen
-            canvas.present()
-            
-            # Check if quit key is pressed during the trial
-            keyboard.check(keys=[misc.constants.K_y])
-            
-            # Clearing any key presses before playing the sounds
-            keyboard.clear()
-
-            # Play the soundtrack
-            sd.play(soundtrack, samplerate = params["SAMPLE_RATE"])
-
-            # Wait until the end of each trial
-            sd.wait()
-
-            # Initialize variables for logging task performance
-            response, rt = None, None
-            trial_performance   = {"CORRECT": 0, "INCORRECT": 0}
-            max_response_time   = ITI
-            response_time_start = clock.time
-
-            # Check for key presses with max response time equal to ITI
-            while clock.time - response_time_start < max_response_time:
-                
-                # Non-blocking function to check for pressed keys
-                keys = keyboard.read_out_buffered_keys()
-
-                # ------ Key-press trials ------ 
-                if keys and keys[0] != 115: # 115 is "s" from scanner sync box
-                    response = keys[-1]      # If multiple, we take the last key
-                    key_press_time = clock.time / 1000 # Convert to sec
-                    rt = np.abs((key_press_time - response_time_start) / 1000) # Convert to sec
-
-                    # Show feedback
-                    perfo_code, trial_performance = give_feedback_freqCount(
-                        freq_dev_no, # Actual number of frequency deviants
-                        response,    # Participant's count
-                        correct,     # Fixation cross for correct responses
-                        wrong        # Fixation cross for incorrect responses
-                    )
-
-                    # Log with correction of the response for MRI buttons (1 is 0 devs, ...)
-                    response = response - 1
-                    freqDev_log.write(f"{key_press_time};100;{chr(response)};{rt}\n")
-
-            # Write relevant info to log for tones
-            timDev_log.write(f"{trial_log}")
-        
-        # Rename the logs according to BIDS standard
-        timDev_log.rename(f"sub-{exp.subject:02d}_ses-{sesh}_task-timDev_ts-{ts}_events.tsv")
-        freqDev_log.rename(f"sub-{exp.subject:02d}_ses-{sesh}_task-freqDev_ts-{ts}_events.tsv")
-
-        # Save the logs on block level!
-        timDev_log.save()
-        freqDev_log.save()
-        
-        # At the end of each block, give time to rest (works as inter-block-interval)
-        if block_idx < no_blocks:
-
-            # Clearing any key presses
-            keyboard.clear()
-
-            # Check if quit key is pressed
-            keyboard.check(keys=[misc.constants.K_y])
-
-            # If the task ends before the MRI protocol. Inform the participant to keep calm and remain still.
-            blank_canvas.present()
-            scanner_text.present()
-
-            # Wait for the MRI QU to end the block by pressing a key unavailable to the participant.
-            keyboard.wait(keys=[misc.constants.K_e])
-
-            # When the MRI sequence ends, show text with performance updates
-            mainTask_performance = f'Correct: {trial_performance["CORRECT"]}, Wrong: {trial_performance["INCORRECT"]}'
-            mainTask_progress    = f'Blocks completed: {block_idx} / {no_blocks}'
-            mainTask_rest = stimuli.TextScreen(
-                params["REST_HEADING"], 
-                mainTask_performance + f"\n\n{mainTask_progress}" + "\n\n" + params["REST_TEXT"],
-                heading_size=params["HEADING_SIZE"],
-                heading_colour=params["WHITE"],
-                text_size=params["TEXT_SIZE"],
-                text_colour=params["WHITE"]
-                )
-            mainTask_rest.present()
-
-            # Wait for the participant to signal they are rested
-            keyboard.wait(keys=params['DETECTION_SYMBOL'])
-            mainTask_rest.clear_surface()
-            blank_canvas.present()
-
-    # Say thanks at the end of the frequency counting task
     goodbye_task_message = stimuli.TextScreen(
         params["TASK_END_HEADING"] + task_name + " task.",
         params["TASK_END_TEXT"],
