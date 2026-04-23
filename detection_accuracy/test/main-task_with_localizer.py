@@ -840,8 +840,8 @@ if main_task_on:
         keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
 
         # Play all tone sequences: trial by trial
-        current_trial_time = exp.clock.time - task_start_time
-        for soundtrack, ITI, freq_dev_no, trial_log in sound_gen.generate_soundtrack(df_block, current_trial_time, params["MAX_AMPLITUDE"], params["NUM_HARMONICS"],  params["TONE_DURATION"],  params["HARMONIC_FACTOR"], params["TONE_LOUDNESS"]):
+        block_start_time = exp.clock.time - task_start_time
+        for soundtrack, ITI, freq_dev_no, trial_log in sound_gen.generate_soundtrack(df_block, block_start_time, params["MAX_AMPLITUDE"], params["NUM_HARMONICS"],  params["TONE_DURATION"],  params["HARMONIC_FACTOR"], params["TONE_LOUDNESS"]):
 
             # Refresh the screen
             canvas.present()
@@ -890,9 +890,6 @@ if main_task_on:
 
             # Write relevant info to log for tones
             timDev_log.write(f"{trial_log}")
-
-            # Update trial start time
-            current_trial_time = exp.clock.time - task_start_time
         
         # Rename the logs according to BIDS standard
         timDev_log.rename(f"sub-{exp.subject:02d}_ses-{sesh}_task-timDev_ts-{ts}_events.tsv")

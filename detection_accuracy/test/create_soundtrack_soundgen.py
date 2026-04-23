@@ -1,9 +1,9 @@
 #! /usr/bin/env python
-# Time-stamp: <2026-04-13 m.utrosa@bcbl.eu>
+# Time-stamp: <2026-04-23 m.utrosa@bcbl.eu>
 '''
 create_soundtrack_soundgen() module generates sounds as defined in csv.
 '''
-# import warnings # ON PAUSE: it's annoying
+# import warnings # ON PAUSE because it's annoying
 import numpy as np
 import pandas as pd
 from pathlib import Path
