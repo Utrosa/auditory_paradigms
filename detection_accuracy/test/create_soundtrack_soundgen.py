@@ -3,7 +3,7 @@
 '''
 create_soundtrack_soundgen() module generates sounds as defined in csv.
 '''
-# import warnings # On pause because it's annoying
+# import warnings # ON PAUSE: it's annoying
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -102,6 +102,9 @@ class SoundGen:
         
         :yield: final_sequence: An array of audio samples, representing harmonic a complex tone sequence.
         """
+        current_time = current_time / 1000
+        print(f"\nStarting time: {current_time} sec.")
+        current_time = current_time * self.sample_rate
 
         # Get number of trials per block
         no_trials = len(df["trial_no"].unique())
@@ -124,7 +127,8 @@ class SoundGen:
         # Loop through all trials in the dataframe
         # Each trial is a linear combination of parameters
         for trial in df.itertuples():
-            
+            print(trial)
+
             # Initialize the sequence, log and count of frequency devs.
             sequence = []
             sequence_log = str()
@@ -229,25 +233,40 @@ class SoundGen:
                 
                 # Get tone onset and add to log
                 onset_sec = current_time / self.sample_rate
+
                 if not pd.isna(trial.dev):
                     if trial.dev > 0:
                         if not fDev:
-                            tone_type = f"fStd-{trial.base_freq}Hz_delta-p{int(trial.dev_abs)}ms_tDevLoc-{trial.dev_loc}_n-fStdtDev"
+                            if tone_count == trial.dev_loc:
+                                tone_type = f"fStd-{int(trial.base_freq)}Hz_delta-p{int(trial.dev_abs)}ms_tDevLoc-{int(trial.dev_loc)}_type-fStdtDev"
+                            else:
+                                tone_type = f"fStd-{int(trial.base_freq)}Hz_type-fStdtStd"
                         else:
-                            tone_type = f"fStd-{trial.base_freq}Hz_fDev-{fDev}Hz_fDevLoc-{fDevLoc}_delta-p{int(trial.dev_abs)}ms_tDevLoc-{trial.dev_loc}_n-fDevtDev"
+                            if tone_count == trial.dev_loc:
+                                tone_type = f"fStd-{int(trial.base_freq)}Hz_fDev-{fDev}Hz_fDevLoc-{int(fDevLoc)}_delta-p{int(trial.dev_abs)}ms_tDevLoc-{int(trial.dev_loc)}_type-fDevtDev"
+                            else:
+                                tone_type = f"fStd-{int(trial.base_freq)}Hz_fDev-{fDev}Hz_fDevLoc-{int(fDevLoc)}_type-fDevtStd"
                     elif trial.dev < 0:
                         if not fDev:
-                            tone_type = f"fStd-{trial.base_freq}Hz_delta-n{int(trial.dev_abs)}ms_tDevLoc-{trial.dev_loc}_n-fStdtDev"
+                            if tone_count == trial.dev_loc:
+                                tone_type = f"fStd-{int(trial.base_freq)}Hz_delta-n{int(trial.dev_abs)}ms_tDevLoc-{int(trial.dev_loc)}_type-fStdtDev"
+                            else:
+                                tone_type = f"fStd-{int(trial.base_freq)}Hz_type-fStdtStd"
                         else:
-                            tone_type = f"fStd-{trial.base_freq}Hz_fDev-{fDev}Hz_fDevLoc-{fDevLoc}_delta-n{int(trial.dev_abs)}ms_tDevLoc-{trial.dev_loc}_n-fDevtDev"
+                            if tone_count == trial.dev_loc:
+                                tone_type = f"fStd-{int(trial.base_freq)}Hz_fDev-{fDev}Hz_fDevLoc-{int(fDevLoc)}_delta-n{int(trial.dev_abs)}ms_tDevLoc-{int(trial.dev_loc)}_type-fDevtDev"
+                            else:
+                                tone_type = f"fStd-{int(trial.base_freq)}Hz_fDev-{fDev}Hz_fDevLoc-{int(fDevLoc)}_type-fDevtStd"
                     else:
                         if not fDev:
-                            tone_type = f"fStd-{trial.base_freq}Hz_delta-{int(trial.dev_abs)}ms_tDevLoc-{trial.dev_loc}_n-fStdtStd"
+                            tone_type = f"fStd-{int(trial.base_freq)}Hz_type-fStdtStd"
                         else:
-                            tone_type = f"fStd-{trial.base_freq}Hz_fDev-{fDev}Hz_fDevLoc-{fDevLoc}_delta-{int(trial.dev_abs)}ms_tDevLoc-{trial.dev_loc}_n-fDevtStd"
+                            tone_type = f"fStd-{int(trial.base_freq)}Hz_fDev-{fDev}Hz_fDevLoc-{int(fDevLoc)}_type-fDevtStd"
                 else:
                     tone_type = "silence"
-                    
+                print("\n\n")
+                print(tone_type)
+
                 log_format = f"{onset_sec};{tone_duration};{trial.dev_type};{tone_type}\n"
                 sequence_log = sequence_log + log_format
                 
@@ -287,6 +306,9 @@ class SoundGen:
                     sequence.append(np.zeros(current_isi))
                     current_time += current_isi
 
+            # Add the iti to current time
+            current_time += iti_samples
+
             # -------------- Join all segments ----------------
             final_sequence = np.concatenate(sequence)
 
@@ -299,7 +321,7 @@ class SoundGen:
                         f"for trial {trial.trial_no} in block {trial.block_no}.")
 
             # Yield the tone sequence, ITI (an array of zeros),
-            # and the number of frequency deviants.
+            # the number of frequency deviants, and the sequence log.
             yield final_sequence, trial.iti, trial.freq_dev_no, sequence_log
 
             # Clear the list for the next iteration (memory <3)
@@ -350,8 +372,9 @@ if __name__ == "__main__":
         df_block = df[df["block_no"] == block_idx]
 
         # Generate the soundtrack of the experimental session
-        for soundtrack, iti, freq in sound_gen.generate_soundtrack(
+        for soundtrack, iti, freq, log in sound_gen.generate_soundtrack(
            df_block,
+           block_idx, # This should be the block's start time
            params["MAX_AMPLITUDE"],
            params["NUM_HARMONICS"], 
            params["TONE_DURATION"], 
@@ -360,3 +383,5 @@ if __name__ == "__main__":
            ):
             sd.play(soundtrack, samplerate = params["SAMPLE_RATE"])
             sd.wait()
+            # Here you have to add code to wait for the ITI
+            # or output ITI samples and play that as silence with sounddevice
