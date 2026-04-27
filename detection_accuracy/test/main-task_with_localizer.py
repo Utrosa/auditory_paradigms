@@ -52,7 +52,7 @@ params = {
     "SOUNDS_PER_SEQUENCE" : 30, # determines the length of trials; each sound is 1 sec
 
     # Visual
-    "CANVAS_SIZE"             : (1024, 768), # MRI monitor resolution.
+    "CANVAS_SIZE"             : (1280, 800), # MRI monitor resolution.
     "FIXATION_CROSS_SIZE"     : (40, 40),
     "FIXATION_CROSS_POSITION" : (0, 0),
     "FIXATION_CROSS_WIDTH"    : 5,
@@ -888,7 +888,7 @@ if localizer_on:
             loop += 1
 
         # Save the log
-        localizer_log.rename(f"sub-{exp.subject:02d}_ses-{sesh}_task-{task_name}_ts-{ts}_events.tsv")
+        localizer_log.rename(f"sub-{exp.subject:02d}_ses-{sesh}_task-localizer_ts-{ts}_events.tsv")
         localizer_log.save()
 
         # The experiment ends before the MRI protocol. Inform the participant to keep calm and remain still.

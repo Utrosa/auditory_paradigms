@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-# Time-stamp: <2026-04-13 m.utrosa@bcbl.eu>
+# Time-stamp: <2026-04-27 m.utrosa@bcbl.eu>
 
 # 00. PREPARATION ---------------------------------------------------------------------------------
 import sys
@@ -232,6 +232,11 @@ def create_experimental_sessions(params, sesID, save_csv=False, MAX_BLOCK_DURATI
 			if combo["dev_type"] == "late":
 				continue
 
+		# Change the dev_loc for on_time combos
+		if combo["dev_type"] == "on_time":
+			combo["dev_loc"] = np.nan
+			print(combo)
+
 		# If all checks pass, appen the trial combo (dict).
 		VALID_TARGET_COMBOS.append(combo)
 
@@ -357,13 +362,15 @@ def create_experimental_sessions(params, sesID, save_csv=False, MAX_BLOCK_DURATI
 		# Generate a list of all possible frequency deviation locations in the tone sequence.
 		FREQ_LOC_ALL = list(range(params["FIRST_FREQ_LOC"], params["LAST_FREQ_LOC"] + 1))
 		
-		# Ensure that the dev_loc and freq_loc are not the same.
-		FREQ_LOC_ALL.remove(trial["dev_loc"])
+		# Ensure that the dev_loc and freq_loc are not the same for trials with timing devs.
+		if not np.isnan(trial["dev_loc"]): # Location for "on-time" trials is np.nan
+			FREQ_LOC_ALL.remove(trial["dev_loc"])
 
 		# Ensure freq_loc is not on dev_loc + 1 tone, which is displaced due to relative timing.
 		# e.g.: for early tones, the 'create_soundtrack_soundgen.py' shortens the ISI before 
 		# the displaced tone and lengthens the ISI after that tone.
-		FREQ_LOC_ALL.remove(trial["dev_loc"] + 1)
+		if not np.isnan(trial["dev_loc"]): # Location for "on-time" trials is np.nan
+			FREQ_LOC_ALL.remove(trial["dev_loc"] + 1)
 
 		# Randomly determine the number of frequency deviants for the current trial.
 		FREQ_REP = random.sample(
@@ -656,7 +663,7 @@ if __name__ == "__main__":
 	"LAST_FREQ_LOC"  : 7,  # The last tone to be displaced frequency-wise
 	}
 
-	for session in range(1, 1001):
+	for session in range(1, 10):
 		with open(f"trials/ses-{session:003d}_exp_parameter_combo.txt", "w") as f:
 			sys.stdout = f
 			create_experimental_sessions(params, session, save_csv=True)

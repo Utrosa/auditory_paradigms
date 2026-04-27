@@ -1,9 +1,9 @@
 #! /usr/bin/env python
-# Time-stamp: <2026-04-23 m.utrosa@bcbl.eu>
+# Time-stamp: <2026-04-27 m.utrosa@bcbl.eu>
 '''
 create_soundtrack_soundgen() module generates sounds as defined in csv.
 '''
-# import warnings # ON PAUSE because it's annoying
+import warnings
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -112,13 +112,13 @@ class SoundGen:
         sample_isi = df["isi"].iloc[0] if not df.empty else "N/A"
         sample_iti = df["iti"].iloc[0] if not df.empty else "N/A"
         sample_dev = df["dev"].iloc[0] if not df.empty else "N/A"
-        # message = (
-        #     "\nAssuming input values are in milliseconds."
-        #     "\nThe script converts TONE_DURATION, ISI, ITI, and DEV to seconds. Verify units in the input dataset."
-        #     "\nExample of raw (unconverted) values:"
-        #     f" TONE_DURATION ({tone_duration}), ISI ({sample_isi}), ITI ({sample_iti}) and DEV ({sample_dev})."
-        #     )
-        # warnings.warn(message, UserWarning)
+        message = (
+            "\nAssuming input values are in milliseconds."
+            "\nThe script converts TONE_DURATION, ISI, ITI, and DEV to seconds. Verify units in the input dataset."
+            "\nExample of raw (unconverted) values:"
+            f" TONE_DURATION ({tone_duration}), ISI ({sample_isi}), ITI ({sample_iti}) and DEV ({sample_dev})."
+            )
+        warnings.warn(message, UserWarning)
 
         # Convert to sec (only once)
         tone_duration = tone_duration / 1000
@@ -331,7 +331,7 @@ if __name__ == "__main__":
     sesID = 27
     params = {
         "PROJECT_ROOT"    : "/home/mutrosa/Documents/projects/auditory_paradigms/detection_accuracy/test",  
-        "TONE_LOUDNESS"   : 50,     # dB SPL
+        "TONE_LOUDNESS"   : 75,     # dB SPL
         "TONE_DURATION"   : 50,     # msec
         "NUM_HARMONICS"   : 10,     # Number of harmonics
         "HARMONIC_FACTOR" : 0.8,    # Harmonic amplitude decay factor
