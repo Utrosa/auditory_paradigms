@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-# Time-stamp: <23-04-2026, m.utrosa@bcbl.eu>
+# Time-stamp: <27-04-2026, m.utrosa@bcbl.eu>
 '''
 Main experimental script
 - runs localizer
@@ -31,8 +31,9 @@ log_loc_format_NaNs  = "{0:.3f}\t{1:.3f}\t{2}\t{3}\t{4}\n"
 log_task_format_fStr = "{1}\t{2}\t{3}\t{4}\n"
 
 # 01. PARAMETERS -------------------------------------------------------------------------
-sesh = input("Enter the session number with 0 prefixed (e.g.: 01, 02):")
-sesID = int(sesh)
+idx  = input("Enter the index of exp_parameter_combo csv:")
+sesh = input("Enter the session number:")
+comboID = int(idx); sesID = int(sesh)
 control.set_develop_mode(on=False)
 localizer_on = True
 main_task_on = True
@@ -52,7 +53,7 @@ params = {
     "SOUNDS_PER_SEQUENCE" : 30, # determines the length of trials; each sound is 1 sec
 
     # Visual
-    "CANVAS_SIZE"             : (1280, 800), # MRI monitor resolution.
+    "CANVAS_SIZE"             : (1920,  1200), # Linux Mint monitor resolution.
     "FIXATION_CROSS_SIZE"     : (40, 40),
     "FIXATION_CROSS_POSITION" : (0, 0),
     "FIXATION_CROSS_WIDTH"    : 5,
@@ -66,7 +67,7 @@ params = {
     "WRONG"   : (255, 234, 0),   # yellow; color contrast on black is super (17.02)
     
     # Audio for task
-    "TONE_LOUDNESS"   : 75,     # dB SPL
+    "TONE_LOUDNESS"   : 85,     # dB SPL
     "TONE_DURATION"   : 50,     # msec
     "NUM_HARMONICS"   : 10,     # Number of harmonics
     "HARMONIC_FACTOR" : 0.8,    # Harmonic amplitude decay factor
@@ -527,7 +528,7 @@ random.shuffle(filenames_sounds)
 
 # Load the trial parameters from csv for main task
 homePath  = Path(params["PROJECT_ROOT"])
-paramPath = homePath / f"ses-{sesID:003d}_exp_parameter_combo.csv"
+paramPath = homePath / f"ses-{comboID:03d}_exp_parameter_combo.csv"
 df        = pd.read_csv(paramPath)
 no_blocks = len(df["block_no"].unique())
 
@@ -542,7 +543,14 @@ for col in list_cols:
     )
 
 # 04. INITIALIZE THE EXPERIMENT ----------------------------------------------------------
-exp  = design.Experiment(name = "devLoc") # give a name following BIDS specification
+# Settings to ensure that the window size fits the stimuli computer & projector in the MRI
+control.defaults.opengl = 2 # OpenGL (vsync / blocking); default
+control.defaults.display_resolution = params["CANVAS_SIZE"] # default is None
+control.defaults.window_size = params["CANVAS_SIZE"] # relevant when running in window mode
+control.defaults.window_no_frame = True              # relevant when running in window mode
+
+# Initialize the experiment with a name following BIDS specification
+exp  = design.Experiment(name = "devLoc")
 control.initialize(exp)
 
 # 05. CREATE & PRELOAD THE STIMULI -------------------------------------------------------
@@ -654,12 +662,18 @@ if main_task_on:
         nw = datetime.now()
         ts = int(nw.timestamp())
 
+        # Initialize a dict to track performance on block-level
+        trial_performance = {"CORRECT": 0, "INCORRECT": 0}
+
+        # Count sound trials to calculate percentage correct
+        no_sound_trials = 0
+
         # Initialize log for tones
-        timDev_log = io.OutputFile(suffix = sesh, directory = f'bids_output')
+        timDev_log = io.OutputFile(suffix = sesh, directory = f'bids_output_{comboID:003d}')
         timDev_log.write("onset\tduration\ttrial_type\n")
         
         # Initialize log for responses on the frequency deviant counting task
-        freqDev_log = io.OutputFile(suffix = sesh, directory = f'bids_output')
+        freqDev_log = io.OutputFile(suffix = sesh, directory = f'bids_output_{comboID:003d}')
         freqDev_log.write("onset\tduration\ttrial_type\tresponse_time\n")
 
         # Wait for onset of the functional sequence for the main task
@@ -675,7 +689,8 @@ if main_task_on:
 
         # Play all tone sequences: trial by trial
         block_start_time = exp.clock.time - task_start_time
-        for soundarray, ITI, freq_dev_no, trial_log in sound_gen.generate_soundtrack(df_block, block_start_time, params["MAX_AMPLITUDE"], params["NUM_HARMONICS"],  params["TONE_DURATION"],  params["HARMONIC_FACTOR"], params["TONE_LOUDNESS"]):
+        
+        for soundarray, ITI, freq_dev_no, trial_log, time_end in sound_gen.generate_soundtrack(df_block, block_start_time, params["MAX_AMPLITUDE"], params["NUM_HARMONICS"],  params["TONE_DURATION"],  params["HARMONIC_FACTOR"], params["TONE_LOUDNESS"]):
 
             # Refresh the screen
             canvas.present()
@@ -689,11 +704,14 @@ if main_task_on:
             # Wait until the end of each trial
             sd.wait()
 
-            # Initialize variables for logging task performance
+            # Initialize variables for logging task performance on trial-level
             response, rt = None, None
-            trial_performance   = {"CORRECT": 0, "INCORRECT": 0}
             max_response_time   = ITI
             response_time_start = clock.time
+
+            # Align the clocks
+            time_end_msec = time_end * 1000
+            offset_ms   = response_time_start - time_end_msec
 
             # Check for key presses with max response time equal to ITI
             while clock.time - response_time_start < max_response_time:
@@ -702,10 +720,16 @@ if main_task_on:
                 keys = keyboard.read_out_buffered_keys()
 
                 # ------ Key-press trials ------ 
-                if keys and keys[0] != 115: # 115 is "s" from scanner sync box
+                if keys and keys[0] != 115:  # 115 is "s" from scanner sync box
                     response = keys[-1]      # If multiple, we take the last key
-                    key_press_time = clock.time / 1000 # Convert to sec
-                    rt = np.abs((key_press_time - response_time_start) / 1000) # Convert to sec
+                    
+                    # Get time of key press
+                    key_press_raw = clock.time
+                    key_press_corr = key_press_raw - offset_ms
+                    key_press_time = key_press_corr / 1000
+                    
+                    # Get reaction time
+                    rt = (clock.time - response_time_start) / 1000
 
                     # Show feedback
                     perfo_code, trial_performance = give_feedback_freqCount(
@@ -719,12 +743,16 @@ if main_task_on:
                     response = response - 1
                     freqDev_log.write(f"{key_press_time}\t100\t{chr(response)}\t{rt}\n")
 
+            # Update count of sound trials for percentage correct
+            if not np.isnan(freq_dev_no):
+                no_sound_trials += 1
+
             # Write relevant info to log for tones
             timDev_log.write(f"{trial_log}")
         
         # Rename the logs according to BIDS standard
-        timDev_log.rename(f"sub-{exp.subject:02d}_ses-{sesh}_task-timDev_ts-{ts}_events.tsv")
-        freqDev_log.rename(f"sub-{exp.subject:02d}_ses-{sesh}_task-freqDev_ts-{ts}_events.tsv")
+        timDev_log.rename(f"sub-{exp.subject:02d}_ses-{sesID:02d}_task-timDev_ts-{ts}_events.tsv")
+        freqDev_log.rename(f"sub-{exp.subject:02d}_ses-{sesID:02d}_task-freqDev_ts-{ts}_events.tsv")
 
         # Save the logs on block level!
         timDev_log.save()
@@ -745,10 +773,11 @@ if main_task_on:
 
         # When the MRI sequence ends, show text with performance updates
         mainTask_performance = f'Correct: {trial_performance["CORRECT"]}, Wrong: {trial_performance["INCORRECT"]}'
+        percent_correct = f'Percentage correct: {round((trial_performance["CORRECT"] / no_sound_trials) * 100)} %'
         mainTask_progress    = f'Blocks completed: {block_idx} / {no_blocks}'
         mainTask_rest = stimuli.TextScreen(
             params["REST_HEADING"], 
-            mainTask_performance + f"\n\n{mainTask_progress}" + "\n\n" + params["REST_TEXT"],
+            mainTask_performance + f"\n\n{percent_correct}" + f"\n\n{mainTask_progress}" + "\n\n" + params["REST_TEXT"],
             heading_size=params["HEADING_SIZE"],
             heading_colour=params["WHITE"],
             text_size=params["TEXT_SIZE"],
@@ -798,7 +827,7 @@ if localizer_on:
         # Initialize the log with unique timestamps
         nw = datetime.now()
         ts = int(nw.timestamp())
-        localizer_log = io.OutputFile(suffix = sesh, directory = f'bids_output')
+        localizer_log = io.OutputFile(suffix = sesh, directory = f'bids_output_{comboID:003d}')
         localizer_log.write("onset\tduration\tstim_file\ttrial_type\tresponse_time\n")
         run_performance = {"H": 0, "M": 0, "CR": 0, "FA": 0}
 
@@ -888,7 +917,7 @@ if localizer_on:
             loop += 1
 
         # Save the log
-        localizer_log.rename(f"sub-{exp.subject:02d}_ses-{sesh}_task-localizer_ts-{ts}_events.tsv")
+        localizer_log.rename(f"sub-{exp.subject:02d}_ses-{sesID:02d}_task-localizer_ts-{ts}_events.tsv")
         localizer_log.save()
 
         # The experiment ends before the MRI protocol. Inform the participant to keep calm and remain still.
@@ -902,8 +931,8 @@ if localizer_on:
         loc_performance = f'Correct: {run_performance["H"]}, Wrong: {run_performance["FA"] + run_performance["M"]}'
         loc_progress    = f'Runs completed: {run+1}/{params["LOC_REP"]}'
         loc_rest = stimuli.TextScreen(
-            params["REST_HEADING"], 
-            loc_performance + f"\n\n{loc_progress}" + "\n\n" + params["REST_TEXT"],
+            "PERFORMANCE REPORT", 
+            loc_performance + f"\n\n{loc_progress}",
             heading_size=params["HEADING_SIZE"],
             heading_colour=params["WHITE"],
             text_size=params["TEXT_SIZE"],
@@ -911,9 +940,6 @@ if localizer_on:
             )
         loc_rest.present()
         exp.clock.wait(params["WAIT_TIME"])
-
-        # Wait for the participant to signal they are rested
-        keyboard.wait(keys=params['DETECTION_SYMBOL'])
         loc_rest.clear_surface()
         blank_canvas.present()
 

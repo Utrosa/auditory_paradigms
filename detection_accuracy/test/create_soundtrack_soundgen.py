@@ -303,9 +303,6 @@ class SoundGen:
                     sequence.append(np.zeros(current_isi))
                     current_time += current_isi
 
-            # Add the iti to current time
-            current_time += iti_samples
-
             # -------------- Join all segments ----------------
             final_sequence = np.concatenate(sequence)
 
@@ -319,14 +316,18 @@ class SoundGen:
 
             # Yield the tone sequence, ITI (an array of zeros),
             # the number of frequency deviants, and the sequence log.
-            yield final_sequence, trial.iti, trial.freq_dev_no, sequence_log
+            end_time = current_time / self.sample_rate
+            yield final_sequence, trial.iti, trial.freq_dev_no, sequence_log, end_time
 
             # Clear the list for the next iteration (memory <3)
             sequence.clear()
 
+            # Add the iti to current time
+            current_time += iti_samples
+
 # TEST: example usage -----------------------------------------------------------------------------
 if __name__ == "__main__":
-    
+
     # Set the parameters
     sesID = 27
     params = {
