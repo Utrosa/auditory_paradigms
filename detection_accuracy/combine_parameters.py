@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-# Time-stamp: <2026-04-27 m.utrosa@bcbl.eu>
+# Time-stamp: <2026-09-22 m.utrosa@bcbl.eu>
 
 # 00. PREPARATION ---------------------------------------------------------------------------------
 import sys
@@ -11,7 +11,56 @@ from pathlib import Path
 from itertools import product
 
 # 01. DEFINE FUNCTIONS  ---------------------------------------------------------------------------
-def create_deviations(num_values, min_val, max_val, zero=True, N=100):
+def create_freqDevs(f_std, f_dev_no, g_factors):
+	"""
+	Randomly determine a deviation from the given standard frequency.
+	Returns the scaling factor, absolute delta, and the frequency deviance.
+	
+	Parameters
+	----------
+	f_std (int): the standard frequency in Hz
+	f_dev_no (int): the number of frequency deviations wanted
+	g_factors (list of floats): If not True, frequency deviants' scale ranges randomly. If set, the scale
+	is limited to the values in the list.
+
+	Returns
+	-------
+	freqDevs (dict) including
+		g (list of floats): scaling factors for deviants
+		f_deltas (list of int):
+		f_devs (list of int):
+	"""
+	freqDevs = {
+	"gs" : [],
+	"f_deltas" : [],
+	"f_devs" : []}
+
+	for i in range(f_dev_no):
+
+		# Randomly pick a g factor (float) between 0 and 2
+		if g_factors:
+			g = random.sample(g_factors, 1)
+			g = float(g[0])
+		else:
+			g = random.uniform(0, 2)
+
+		# Calculate deviant frequency (int)
+		f_dev = int(f_std * g)
+
+		# Calcualte delta
+		if f_dev > f_std:
+			f_delta = f_dev - f_std # if g > 1; higher Hz
+		elif f_dev < f_std:
+			f_delta = f_std - f_dev # if g < 1; lower Hz
+		
+		# Append to freqDevs dict
+		freqDevs["gs"].append(g)
+		freqDevs["f_deltas"].append(f_delta)
+		freqDevs["f_devs"].append(f_dev)
+
+	return freqDevs
+
+def create_timDevs(num_values, min_val, max_val, zero=True, N=100):
 	"""
 	Generate `num_values` unique integers by sampling from a pool of log-spaced values (base 10).
 	Sampling is random and without replacement.
@@ -138,8 +187,14 @@ def create_experimental_sessions(params, sesID, save_csv=False, MAX_BLOCK_DURATI
 	      Range of tone indices that can be displaced timing-wise.
 	    
 	    **Frequency Deviations**
-	    - "FREQS" : int
-	      Absolute frequency deviants in Hz.
+	    - "FREQ": list of integers representing possible frequency standards.
+	    - "FREQ_DEV_FACTORS": scaling factors for frequency deviants.
+	    - "FREQ_DEV_METHOD": Method for obtaining frequency deviants.
+	    	fixed: deviants are sampled from FREQ list, from which the standard
+	    		   is previously removed.
+	    	dynamic: deviants are created by the create_freqDevs() function by
+	    	         randomly sampling a scaling factor that determines the scale
+	    	         of the deviant frequency.
 	    - "FREQ_REP_MAX" : int
 	      Maximum number of frequency deviations allowed per trial.
 	    - "FIRST_FREQ_LOC" / "LAST_FREQ_LOC" : int
@@ -235,7 +290,6 @@ def create_experimental_sessions(params, sesID, save_csv=False, MAX_BLOCK_DURATI
 		# Change the dev_loc for on_time combos
 		if combo["dev_type"] == "on_time":
 			combo["dev_loc"] = np.nan
-			print(combo)
 
 		# If all checks pass, appen the trial combo (dict).
 		VALID_TARGET_COMBOS.append(combo)
@@ -276,17 +330,16 @@ def create_experimental_sessions(params, sesID, save_csv=False, MAX_BLOCK_DURATI
 	# systematically or unaffected.
 	
 	# Check that the frequency deviancy parameters were set correctly.
-	# Rule: frequency deviants cannot occur on the same (n) or the following (n+1) tone on which
-	# the timing deviant occurs. 
+	# Rule: frequency deviants cannot occur on the same (n), the following (n+1), or preceeding (n-1)
+	# tone as the timing deviant.
 	# This means there must be enough locations (tone indices) for frequency deviants given
 	# the desired number of frequency deviants and the length of tone sequence (total tones).
-	if params["FREQ_REP_MAX"] > params["LAST_FREQ_LOC"] - params["FIRST_FREQ_LOC"] - 1:
+	if params["FREQ_REP_MAX"] > params["LAST_FREQ_LOC"] - params["FIRST_FREQ_LOC"] - 2:
 		raise ValueError(
 				f'Frequency deviants cannot occur {params["FREQ_REP_MAX"]}-times per trial '
 				f'because there are only '
-				f'{params["LAST_FREQ_LOC"] - params["FIRST_FREQ_LOC"] - 1} '
-				'positions allowed.\n Adjust input parameters.'
-		)
+				f'{params["LAST_FREQ_LOC"] - params["FIRST_FREQ_LOC"] - 2} '
+				'positions allowed.\n Adjust input parameters.')
 	
 	### ----------------------- Parameters that are constant across trials ------------------------
 	# Depending on how input parameters are set, these can:
@@ -366,24 +419,32 @@ def create_experimental_sessions(params, sesID, save_csv=False, MAX_BLOCK_DURATI
 		if not np.isnan(trial["dev_loc"]): # Location for "on-time" trials is np.nan
 			FREQ_LOC_ALL.remove(trial["dev_loc"])
 
-		# Ensure freq_loc is not on dev_loc + 1 tone, which is displaced due to relative timing.
+		# Ensure freq_loc is not on "dev_loc + 1" nor "dev_loc - 1" tone,
+		# The dev_loc + 1 tone is displaced due to relative timing.
 		# e.g.: for early tones, the 'create_soundtrack_soundgen.py' shortens the ISI before 
 		# the displaced tone and lengthens the ISI after that tone.
 		if not np.isnan(trial["dev_loc"]): # Location for "on-time" trials is np.nan
 			FREQ_LOC_ALL.remove(trial["dev_loc"] + 1)
+			FREQ_LOC_ALL.remove(trial["dev_loc"] - 1)
 
 		# Randomly determine the number of frequency deviants for the current trial.
 		FREQ_REP = random.sample(
 			list(range(params["FREQ_REP_MAX"] + 1)),
-			1
-			)
+			1)
 		
 		# Allow random sampling with replacement for deviants.
-		FREQ_DEVS = random.choices(
-			FREQ,
-			k=FREQ_REP[0]
-			)
-
+		if params["FREQ_DEV_METHOD"] == "fixed":
+			FREQ_DEVS = random.choices(
+				FREQ,
+				k=FREQ_REP[0])
+		elif params["FREQ_DEV_METHOD"] == "dynamic":
+			f_devs = create_freqDevs(BASE_FREQUENCY[0], FREQ_REP[0], params["FREQ_DEV_FACTORS"])
+			FREQ_DEVS = f_devs["f_devs"]
+		else:
+			raise NameError(
+				"The name of the method to obtain frequency deviants is undefined."
+				"Check spelling or choose an existing method.")
+		
 		# Determine the "type" of sampled frequency deviants (> or < than base freq).
 		FREQ_DEV_TYPE = []
 		for fdt in FREQ_DEVS:
@@ -450,17 +511,17 @@ def create_experimental_sessions(params, sesID, save_csv=False, MAX_BLOCK_DURATI
 	
 	# Create one empty/silent trial.
 	empty_trial = {
-		'dev': None,
-		'dev_type': None,
-		'dev_loc': None,
-		'dev_abs': None,
+		'dev': [None],
+		'dev_type': [None],
+		'dev_loc': [None],
+		'dev_abs': [None],
 		'no_tones': NO_TONES[0],
 		'isi': ISI[0],
-		'base_freq': None, # Irrelevant: not used in create_soundtrack_soundgen.py
-		'freq_dev': None,
-		'freq_dev_type': None,
-		'freq_loc': None,
-		'freq_dev_no': None
+		'base_freq': [None], # Irrelevant: not used in create_soundtrack_soundgen.py
+		'freq_dev': [None],
+		'freq_dev_type': [None],
+		'freq_loc': [None],
+		'freq_dev_no': [None]
 	}
 
 	# Add silent trials randomly
@@ -583,6 +644,13 @@ def create_experimental_sessions(params, sesID, save_csv=False, MAX_BLOCK_DURATI
 	# Create a dataframe from the list of dictionaries
 	df = pd.DataFrame(BLOCK_COMBOS)
 
+	# Print update on number of frequency vs deviant events per experiment and block.
+	mask_f = ~((df["freq_dev"].apply(lambda x: x == [None])) | (df["freq_dev"].apply(lambda x: x == [False])))
+	f_no = len(df[mask_f])
+	mask_t = ~((df["dev"].apply(lambda x: x == [None])) | (df["dev"].apply(lambda x: x == [False])))
+	t_no = len(df[mask_t])
+	print(f"\nNumber of deviants: {f_no} frequency and {t_no} timing deviants.")
+
 	# Initialize a column for the difference between the standard and deviant frequency
 	df['freq_diff'] = [[None] for _ in range(len(df))]
 	df['freq_diff_abs'] = [[None] for _ in range(len(df))]
@@ -620,10 +688,9 @@ def create_experimental_sessions(params, sesID, save_csv=False, MAX_BLOCK_DURATI
 
 # 02. EXAMPLE USAGE & SIMULATION OF EXPERIMENTAL SESSIONS -----------------------------------------
 if __name__ == "__main__":
-	freq_int = [192, 220, 392, 440] # G3, A3, G4, A4
 	params = {
 	
-	"OUT_PATH" : "/home/mutrosa/Documents/projects/auditory_paradigms/detection_accuracy/trials",
+	"OUT_PATH" : "/home/mutrosa/Documents/projects/auditory_paradigms/detection_accuracy/PPiMP/trials",
 
 	# a. Overall structure of the experimental session
 	"NO_BLOCKS" : 4, 	    # Number of blocks, equal to the number of funcional scans in the MRI protocol
@@ -631,12 +698,12 @@ if __name__ == "__main__":
 	"ITI_MAX"   : 2500,     # Smaller than inter-block-interval (max rest time = 2 min)
 	
 	# b. Tone sequence
-	"TONE_DURATION" : 100,   # Duration of a single tone in msec
+	"TONE_DURATION" : 50,  # Duration of a single tone in msec
 
 	# If kept constant, the length of tone sequences is the same for each experimental session.
 	# If not, length of tone sequence is chosen randomly from the range and kept constant across sesions.
-	"MIN_TONES" : 7,    # Min. no. of tones in a single sequence
-	"MAX_TONES" : 7,    # Max. no. of tones in a single sequence
+	"MIN_TONES" : 8,    # Min. no. of tones in a single sequence
+	"MAX_TONES" : 8,    # Max. no. of tones in a single sequence
 
 	# c. Inter Stimulus Interval is the time between presentation of two sequential tones.
 	"ISI_MIN"  : 700,        # Min. duration of ISI 
@@ -652,18 +719,19 @@ if __name__ == "__main__":
 	"LAST_DEV_LOC"  : 6,  # The last tone to be displaced timing-wise
 
 	# c. Frequency deviants
-	"FREQS" : freq_int,   # Absolute frequency deviants in Hz
-	"FREQ_REP_MAX"   : 3, # How many times max can frequency deviations occur per trial?
-						  # If 3, it means there could be 0, 1, 2, or 3 deviants in one trial
-						  # That's good, because we have 4 buttons in the MRI
-  
+	"FREQS"             : random.sample(range(180, 1500), 3), # Random sample of freq. standards
+	"FREQ_DEV_FACTORS"  : [0.867, 0.547, 0.429, 0.395, 0.197], # If False, determined randomly on each trial.
+	"FREQ_DEV_METHOD"   : "dynamic", # fixed vs dynamic
+	"FREQ_REP_MAX"    : 1, # How many times max can frequency deviations occur per trial?
+						   # If 3, it means there could be 0, 1, 2, or 3 deviants in one trial
+						   # That's the max in case of frequency counting task because we only
+						   # have 4 buttons in the MRI response box.
 	"FIRST_FREQ_LOC" : 2,  # The first tone that can be displaced frequency-wise
 						   # Easier to count if the first 2 tones are frequency standards
-
-	"LAST_FREQ_LOC"  : 7,  # The last tone to be displaced frequency-wise
+	"LAST_FREQ_LOC"  : 8,  # The last tone to be displaced frequency-wise
 	}
 
-	for session in range(1, 10):
-		with open(f"trials/ses-{session:003d}_exp_parameter_combo.txt", "w") as f:
+	for session in range(1, 1000):
+		with open(f"/home/mutrosa/Documents/projects/auditory_paradigms/detection_accuracy/PPiMP/trials/ses-{session:003d}_exp_parameter_combo.txt", "w") as f:
 			sys.stdout = f
 			create_experimental_sessions(params, session, save_csv=True)

@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 # Time-stamp: <2026-04-13 m.utrosa@bcbl.eu>
+# conda activate expyriment
 '''
 Visualize the relationships between variables that define trials.
 - inter trial interval (ITI) [msec]
@@ -20,7 +21,7 @@ import math
 import ast
 
 # 02. DEFINE THE FUNCTION -------------------------------------------------------------------------
-def plot_count(df, title, x_names, x_label, y_name, y_order, y_label, y_group=None, save_as=None, show=False, max_cols=7, rect=(0,0,1,1), fig_n=3.5):
+def plot_count(df, title, x_names, x_label, y_name, y_order, y_label, y_group=None, save_as=None, show=False, max_cols=7, rect=(0,0,1,1), fig_n=3.5, barve=False):
     '''
     Plots count plots. These can be thought of as histograms of "y_name" 
     for every unique value of x_names, where "y_name" and "x_names" are
@@ -28,7 +29,7 @@ def plot_count(df, title, x_names, x_label, y_name, y_order, y_label, y_group=No
     '''
     # --------- 01. Calculate layout --------- 
     # For each column given in x_names, flatten the values, drop NaNs,
-    # selet unique values only, sort in ascending order, and turn to a list.
+    # select unique values only, sort in ascending order, and turn to a list.
     uniques = {
         col: list(sorted(df[col].explode().dropna().unique()))
         for col in x_names
@@ -59,8 +60,10 @@ def plot_count(df, title, x_names, x_label, y_name, y_order, y_label, y_group=No
     if y_group:
         palettes = ["blend:#7AB,#EDA", "flare", "ch:s=.25,rot=-.25"]
     else:
-        colors = sns.color_palette("pastel", len(x_names))
-
+        if not barve:
+            colors = sns.color_palette("pastel", len(x_names))
+        elif barve:
+            colors = sns.color_palette(barve, len(x_names))
     # --------- 03. Plot --------- 
     row_offset = 0
 
@@ -172,63 +175,69 @@ def plot_count(df, title, x_names, x_label, y_name, y_order, y_label, y_group=No
     plt.close(fig)
 
 # 03. CREATE FIGURES -----------------------------------------------------------------------------
-dataDir  = Path('/home/mutrosa/Documents/projects/auditory_paradigms/detection_accuracy/trials')
+# dataDir  = Path('/home/mutrosa/Documents/projects/auditory_paradigms/detection_accuracy/trials')
+# dataDir  = Path('/home/mutrosa/Documents/projects/auditory_paradigms/detection_accuracy/selected_trials')
+dataDir = Path('/home/mutrosa/Documents/projects/auditory_paradigms/detection_accuracy/PPiMP/trials')
+# for idx in range(150, 300):
+#     i = idx + 1
+i = 39
+# Load the csv with trials
+filename = f'ses-{i:003d}_exp_parameter_combo.csv'
+df_raw = pd.read_csv(dataDir / filename)
+# print("The loaded dataframe:\n")
+# print(df_raw.head())
 
-for idx in range(150):
-    i = idx + 1
+# Correct column data types: lists should not be strings
+list_cols = ["dev", "freq_dev", "freq_dev_type", "freq_loc", "freq_diff", "freq_diff_abs"]
+for col in list_cols:
+  df_raw[col] = df_raw[col].apply(
+      lambda x: ast.literal_eval(x) if isinstance(x, str) else x)
 
-    # Load the csv with trials
-    filename = f'ses-{i:003d}_exp_parameter_combo.csv'
-    df_raw = pd.read_csv(dataDir / filename)
+# Explode the dataframe
+df_trials = df_raw.copy()
+df_events = df_raw.explode(list_cols)
 
-    # Correct column data types: lists should not be strings
-    list_cols = ["freq_dev", "freq_dev_type", "freq_loc", "freq_diff", "freq_diff_abs"]
-    for col in list_cols:
-      df_raw[col] = df_raw[col].apply(
-          lambda x: ast.literal_eval(x) if isinstance(x, str) else x
-      )
+# Remove silent trials
+df_trials.dropna(inplace=True)
+df_events.dropna(inplace=True)
 
-    # Explode the dataframe
-    df_trials = df_raw.copy()
-    df_events = df_raw.explode(list_cols)
+# TIMING DEVIANTS | BASE FREQ, FREQ DEV LOC, FREQ DIFF, FREQ DEV, FREQ DEV NUMBER
+# How are timing deviants distributed ?
+# Use exploded dataframe (plot is on event-level, not trial-level)
 
-    # Remove silent trials
-    df_trials.dropna(inplace=True)
-    df_events.dropna(inplace=True)
+# Negative vs Positive
+params = ['base_freq', 'freq_loc', 'freq_dev_no']
+order = sorted(df_events['dev'].unique())
+plot_count(
+    df=df_events,
+    title=f"DISTRIBUTION OF TIMING DEVIANTS | SES-{i:003d}",
+    x_names=params,
+    x_label="Timing Deviants [msec]",
+    y_name='dev',
+    y_order=order,
+    y_label="Count",
+    save_as=f"plots/ses-{i:003d}_timeDev-dir.png",
+    show=False,
+    max_cols=4,
+    rect=(0.02, 0, 0.93, 0.98), # left, bottom, right, top
+    barve="viridis"
+)
 
-    # TIMING DEVIANTS | BASE FREQ, FREQ DEV LOC, FREQ DIFF, FREQ DEV, FREQ DEV NUMBER
-    # How are timing deviants distributed ?
-    # Use exploded dataframe (plot is on event-level, not trial-level)
-
-    # Negative vs Positive
-    params = ['base_freq', 'freq_loc', 'freq_diff', 'freq_dev', 'freq_dev_no']
-    order = sorted(df_events['dev'].unique())
-    plot_count(
-        df=df_events,
-        title=f"DISTRIBUTION OF TIMING DEVIANTS | SES-{i:003d}",
-        x_names=params,
-        x_label="Timing Deviants [msec]",
-        y_name='dev',
-        y_order=order,
-        y_label="Count",
-        save_as=f"plots/ses-{i:003d}_timeDev-dir.png",
-        show=False,
-        max_cols=7,
-        rect=(0.02, 0, 0.93, 0.98) # left, bottom, right, top
-    )
-
-    # Absolute
-    params = ['base_freq', 'freq_loc', 'freq_diff_abs', 'freq_dev', 'freq_dev_no']
-    plot_count(
-        df=df_events,
-        title=f"DISTRIBUTION OF TIMING DEVIANTS | SES-{i:003d}",
-        x_names=params,
-        x_label="Timing Deviants [msec]",
-        y_name='dev',
-        y_order=order,
-        y_label="Count",
-        save_as=f"plots/ses-{i:003d}_timeDev-abs.png",
-        show=False,
-        max_cols=7,
-        rect=(0.02, 0, 0.93, 0.98) # left, bottom, right, top
-    )
+# Absolute
+params = ['base_freq', 'freq_dev_no']
+order = sorted(df_events['dev'].unique())
+print(order)
+plot_count(
+    df=df_events,
+    title=f"DISTRIBUTION OF TIMING DEVIANTS | SES-{i:003d}",
+    x_names=params,
+    x_label="Timing Deviants [msec]",
+    y_name='dev',
+    y_order=order,
+    y_label="Count",
+    save_as=f"plots/ses-{i:003d}_timeDev-abs.png",
+    show=False,
+    max_cols=4,
+    rect=(0.02, 0, 0.93, 0.98), # left, bottom, right, top
+    barve="viridis"
+)

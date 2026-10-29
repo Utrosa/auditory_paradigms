@@ -1,8 +1,8 @@
 #! /usr/bin/env python
 # Time-stamp: <2026-04-29 m.utrosa@bcbl.eu>
 '''
-Calculates participant's performance from logfiles (events.tsv) and input parameter
-combination .csv, which in necessary for compensation.
+Calculates participant's performance from logfiles.
+Useful for inspecting learning effects and performance-based compensation.
 '''
 
 # ---------- PREP
@@ -44,7 +44,8 @@ def extract_participant_responses(project_dir, subject, session, task, block):
    
    # Return participant's resonses
    return df["trial_type"]
-# ---------- USAGE
+
+# ---------- EXAMPLE USAGE
 if __name__ == "__main__":
     no_blocks = int(input("Enter the number of blocks:"))
     comboID = int(input("Enter the index of exp_parameter_combo.csv:"))
@@ -85,5 +86,3 @@ if __name__ == "__main__":
         print(f"\nPercentage correct in block no. {block_idx}: {round(per_corr_block*100)} %")
 
     print(f"\n*** Percentage correct in the experiment: {round((sum(per_corr_exp) / len(per_corr_exp))*100)} % ***")
-
-# TODO: ADD A CALCULATION FOR HOW MUCH EXTRA MONEY DOES THIS MEAN

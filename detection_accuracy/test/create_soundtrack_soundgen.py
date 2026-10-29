@@ -1,14 +1,16 @@
 #! /usr/bin/env python
 # Time-stamp: <2026-04-27 m.utrosa@bcbl.eu>
 '''
-create_soundtrack_soundgen() module generates sounds as defined in csv.
+create_soundtrack_soundgen() module generates sounds as defined in csv
+optionally, you can save generated sound arrays as .wav files to disk
 '''
+import ast
 import warnings
 import numpy as np
 import pandas as pd
+import soundfile as sf
 from pathlib import Path
 import sounddevice as sd
-import ast
 
 # TODO: replace set_dbspl() with Jasmin's code for sound normalization
 def set_dbspl(sound, dbspl, ref=20e-6):
@@ -329,10 +331,11 @@ class SoundGen:
 if __name__ == "__main__":
 
     # Set the parameters
-    sesID = 27
+    outPath = Path("/home/mutrosa/Documents/projects/auditory_paradigms/stimuli/timDev/stimuli")
+    sesID  = 26
     params = {
         "PROJECT_ROOT"    : "/home/mutrosa/Documents/projects/auditory_paradigms/detection_accuracy/test",  
-        "TONE_LOUDNESS"   : 75,     # dB SPL
+        "TONE_LOUDNESS"   : 85,     # dB SPL
         "TONE_DURATION"   : 50,     # msec
         "NUM_HARMONICS"   : 10,     # Number of harmonics
         "HARMONIC_FACTOR" : 0.8,    # Harmonic amplitude decay factor
@@ -343,7 +346,7 @@ if __name__ == "__main__":
 
     # Load the trial parameters from csv
     homePath  = Path(params["PROJECT_ROOT"])
-    paramPath = homePath / f"ses-{sesID:003d}_exp_parameter_combo.csv"
+    paramPath = homePath / f"ses-{sesID:03d}_exp_parameter_combo.csv"
     df        = pd.read_csv(paramPath)
     no_blocks = len(df["block_no"].unique())
 
@@ -365,12 +368,13 @@ if __name__ == "__main__":
 
         # Correct for zero-indexing
         block_idx = i + 1
+        trial_idx = 1
 
         # Select only the part of the dataframe relevant for the current trial
         df_block = df[df["block_no"] == block_idx]
 
         # Generate the soundtrack of the experimental session
-        for soundtrack, iti, freq, log in sound_gen.generate_soundtrack(
+        for soundtrack, iti, freq_dev_no, trial_log, time_end in sound_gen.generate_soundtrack(
            df_block,
            block_idx, # This should be the block's start time
            params["MAX_AMPLITUDE"],
@@ -383,3 +387,13 @@ if __name__ == "__main__":
             sd.wait()
             # Here you have to add code to wait for the ITI
             # or output ITI samples and play that as silence with sounddevice
+
+            # Optionally, save the trial soundtrack as .wav
+            filename = f"exp_combo-{sesID:03d}_block_{block_idx:02d}_trial_{trial_idx:02d}.wav"
+            sf.write(
+                outPath / filename,
+                soundtrack,
+                params["SAMPLE_RATE"]
+            )
+
+            trial_idx += 1

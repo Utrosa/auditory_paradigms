@@ -49,7 +49,6 @@ NO_TONES if min & max are the same value in params
 
 ### CONSTANT OVER TRIALS & CONSTANT ACROSS EXP. SESSIONS
 
-
 ### MIGHT BE A RELEVANT CHECK FOR BEH. EXP.
 	# To ensure block separability, a change in ISI should 
 	# not be perceived as a deviation (change in tempo)

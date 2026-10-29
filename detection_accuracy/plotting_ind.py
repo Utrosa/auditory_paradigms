@@ -2,7 +2,7 @@
 # Time-stamp: <2026-03-20 m.utrosa@bcbl.eu>
 '''
 Visualize the relationship between variables that define trials.
-Plots a count plot and bar plot separately for each variable.
+Plots a count plot and a bar plot separately for each variable.
 
 Count plot
 - allows grouping of variable
@@ -17,7 +17,7 @@ import pandas as pd
 import seaborn as sns
 
 # 02. DEFINE THE FUNCTION -------------------------------------------------------------------------
-def plot_count(df, title, x_name, x_label, y_name, y_label, y_group=None, col_no=2, save_as=None, show=False):
+def plot_count(df, title, x_name, x_label, y_name, y_label, y_group=None, col_no=3, save_as=None, show=False):
 	
 	sns.set_theme(style="white", font="sans-serif")
 	
@@ -26,7 +26,7 @@ def plot_count(df, title, x_name, x_label, y_name, y_label, y_group=None, col_no
 			data=df,
 			col=x_name,
 			col_wrap=col_no, # incompatible with row
-			height=2.5,
+			height=2,
 			aspect=1,
 			sharey=True,
 			sharex=True
@@ -44,7 +44,7 @@ def plot_count(df, title, x_name, x_label, y_name, y_label, y_group=None, col_no
 			data=df,
 			col=x_name,
 			col_wrap=col_no, # incompatible with row
-			height=2.5,
+			height=2,
 			aspect=1,
 			sharey=True,
 			sharex=True,
@@ -59,7 +59,7 @@ def plot_count(df, title, x_name, x_label, y_name, y_label, y_group=None, col_no
 			)
 
 	h.set_axis_labels("", "")
-	h.set_titles("{col_name}", size=11)
+	# h.set_titles("{col_name}", size=12)
 
 	for ax in h.axes.flat:
 		ax.tick_params(
@@ -68,7 +68,7 @@ def plot_count(df, title, x_name, x_label, y_name, y_label, y_group=None, col_no
 			bottom=True,
 			top=False,
 			labelbottom=True,
-			labelsize=8,
+			labelsize=11,
 			rotation=90
 			)
 		ax.tick_params(
@@ -77,15 +77,15 @@ def plot_count(df, title, x_name, x_label, y_name, y_label, y_group=None, col_no
 			left=True,
 			right=False,
 			labelleft=True,
-			labelsize=8
+			labelsize=11
 			)
 		ax.tick_params(labelbottom=True, labelleft=True)
 
-	h.fig.supxlabel(x_label, fontsize=11)
-	h.fig.supylabel(y_label, fontsize=11)
+	h.fig.supxlabel(x_label, fontsize=14)
+	h.fig.supylabel(y_label, fontsize=14)
 	h.fig.suptitle(
 		title,
-		fontsize=11,
+		fontsize=16,
 		weight="bold"
 		)
 
@@ -192,18 +192,21 @@ def calculate_distributions(dataDir, filename, y_name, x_name):
 if __name__ == "__main__":
 
 	# Load the the csv
-	sesID = 1
-	dataDir  = Path('/home/mutrosa/Documents/projects/auditory_paradigms/detection_accuracy/trials')
-	filename = f'exp_parameter_combo_ses-{sesID:003d}.csv'
+	sesID = 9
+	dataDir  = Path('/home/mutrosa/Documents/projects/auditory_paradigms/detection_accuracy/selected_trials')
+	filename = f'ses-{sesID:003d}_exp_parameter_combo.csv'
 	df = pd.read_csv(dataDir / filename)
 
 	# ------ TIMING DEVIANCY MAGNITUDE | TIMING DEVIANCY LOCATION
-	y_name = "dev"; y_label = "Timing Deviation [msec]"; y_group = "dev_type"
-	x_name = "dev_loc"; x_label = "Timing Deviation Location [tone idx]"
+	y_name = "dev";
+	y_label = "Timing Deviation [msec]";
+	y_group = None
+	x_name = "dev_loc"
+	x_label = "Timing Deviation Location [tone idx]"
 	title_count = f"Count of Timing Deviants | Timing Deviants Location for SES-{sesID:003d}"
 	title_bar   = f"Occurrences of Timing Deviants | Timing Deviants Location for SES-{sesID:003d}"
 
 	plot_group = calculate_distributions(dataDir, filename, y_name, x_name)
 	plot_count(df, title_count, x_name, x_label, y_name, y_label, y_group, save_as="timDev-posneg_count.png", show=True)
-	plot_count(df, title_count, x_name, x_label, y_name, y_label, save_as="timDev-absolute_count.png", show=True)
-	plot_bar(plot_group, title_bar, x_name, x_label, y_name, y_label, save_as="timDev-absolute_bar.png", show=True)
+	# plot_count(df, title_count, x_name, x_label, y_name, y_label, save_as="timDev-absolute_count.png", show=True)
+	# plot_bar(plot_group, title_bar, x_name, x_label, y_name, y_label, save_as="timDev-absolute_bar.png", show=True)
