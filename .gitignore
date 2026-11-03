@@ -9,6 +9,7 @@
 # Untracked folders
 out/
 stimuli/
+nulls/
 stimuli_segments/
 data/
 events/
