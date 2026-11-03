@@ -598,7 +598,7 @@ fix_cross = stimuli.FixCross(size = params["FIXATION_CROSS_SIZE"], position = pa
 wrong     = stimuli.FixCross(size = params["FIXATION_CROSS_SIZE"], position = params["FIXATION_CROSS_POSITION"], line_width = params["FIXATION_CROSS_WIDTH"], colour = params["WRONG"])
 correct   = stimuli.FixCross(size = params["FIXATION_CROSS_SIZE"], position = params["FIXATION_CROSS_POSITION"], line_width = params["FIXATION_CROSS_WIDTH"], colour = params["CORRECT"])
 
-# Get sounds for localizer for directory
+# Get sounds for localizer from directory
 silence = stimuli.Audio(str(filename_null))
 sounds  = {filename: stimuli.Audio(str(filename)) for filename in filenames_sounds}
 
