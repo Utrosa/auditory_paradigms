@@ -1,164 +1,336 @@
 #! /usr/bin/env python
-# Time-stamp: <02-11-2026 m.utrosa@bcbl.eu>
+# Time-stamp: <03-11-2026 m.utrosa@bcbl.eu>
+'''
+TODO: Remove standard tones from the end of the run after adding all deviations
+		- > can randomly decide on between 5 - 10 sec of tones ;)
+TODO: Check implementation of flash probablility -- is it 30%? 
+TODO: No two consecutive flashes allowed (implement this rule!)
+
+References:
+Friston, K. J., Zarahn, E. O. R. N. A., Josephs, O., Henson, R. N., & 
+Dale, A. M. (1999). Stochastic designs in event-related fMRI. Neuroimage,
+10(5), 607-619
+'''
 # 00A. IMPORT
 import sys
 import random
-import warnings
 import numpy as np
 import pandas as pd
 from pathlib import Path
 from itertools import product
 
-# 00B. PARAMETERS
-par = {
-	# a. Timing deviants
-	"TIM_DEVS"    : [4, 8, 13, 19, 27, 36, 48, 63, 80, 100, 125], # Absolute timing deviants in msec
-	"TIM_DEV_REP" : 4, # How many times should each deviation repeat in one MRI run?
-
-	# b. Pitch deviants
-	"PIT_DEVS"    : [4, 8, 13, 19, 27, 36, 48, 63, 80, 100, 125], # Absolute pitch deviants in Hz
-	"PIT_DEV_REP" : 4,	# How many times should each deviation repeat in one MRI run?
-
-	# c. Overall structure of the experimental session
-	"NO_MRI_RUNS" : 4, # How many functional scans are in one experimental session?
-	"RUN_DURATION_MIN" : 10, # What is the duration of the functional run in minutes?
-	"TIME_BETWEEN_DEVS_MIN" : 5000, # ms
-	"TIME_BETWEEN_DEVS_MAX" : 8000, # ms
-	"FREQ_MIN" : 200, # Hz
-	"FREQ_MAX" : 500, # Hz
-	"ISI_MIN"  : 500, # Min. duration of ISI in ms
-	"ISI_MAX"  : 600, # Max. duration of ISI in ms
-	"ISI_STEP" : 1,   # Step size of the ISI range (population) TODO: this may be obsolete for MRI (not for beh)
-	"TONE_DURATION" : 50,  # Duration of a single tone in ms
-}
-
-# 01. GENERATE INDEPENDENT VARIABLES
-# Create negative values for deviations.
-TIM_DEV_pos = np.array(par["TIM_DEVS"])
-TIM_DEV_neg = -TIM_DEV_pos
-PIT_DEV_pos = np.array(par["PIT_DEVS"])
-PIT_DEV_neg = -PIT_DEV_pos
-
-# Combine positive and negative values into a sorted list.
-TIM_DEV_arr = np.concatenate([TIM_DEV_pos, TIM_DEV_neg])
-TIM_DEV     = np.sort(TIM_DEV_arr).tolist()
-PIT_DEV_arr = np.concatenate([PIT_DEV_pos, PIT_DEV_neg])
-PIT_DEV     = np.sort(PIT_DEV_arr).tolist()
-
-# Define possible "types" of deviations.
-TIM_DEV_DIR = ['early', 'late']
-PIT_DEV_DIR = ['lower', 'higher']
-
-# 02. GENERATE COUNTERBALANCED TRIALS
-# Generate all possible combinations of the independent variables.
-# This will counterbalance the deviations for their type and direction.
-TIM_TARGET_COMBOS1 = [
-{"isi" : 500, "dev" : td, "dev_cat" : "timing", "dev_dir" : tdt} for td, tdt in product(TIM_DEV, TIM_DEV_DIR)
-] * (par["TIM_DEV_REP"]/2)
-TIM_TARGET_COMBOS2 = [
-{"isi" : 700, "dev" : td, "dev_cat" : "timing", "dev_dir" : tdt} for td, tdt in product(TIM_DEV, TIM_DEV_DIR)
-] * (par["TIM_DEV_REP"]/2)
-
-PIT_TARGET_COMBOS = [
-{"dev" : pd, "dev_cat" : "pitch", "dev_dir" : pdt} for pd, pdt in product(PIT_DEV, PIT_DEV_DIR)
-] * par["PIT_DEV_REP"]
-
-TARGET_COMBOS = TIM_TARGET_COMBOS + PIT_TARGET_COMBOS
-VALID_TARGET_COMBOS = []
-for combo in TARGET_COMBOS:
+def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 	
-	if "timing" in combo["dev_cat"]:
+	# 01. GENERATE INDEPENDENT VARIABLES --------------------------------------
+	# Create negative values for deviations.
+	TIM_DEV_pos = np.array(par["TIM_DEVS"])
+	TIM_DEV_neg = -TIM_DEV_pos
+	PIT_DEV_pos = np.array(par["PIT_DEVS"])
+	PIT_DEV_neg = -PIT_DEV_pos
+
+	# Combine positive and negative values into a sorted list.
+	TIM_DEV_arr = np.concatenate([TIM_DEV_pos, TIM_DEV_neg])
+	TIM_DEV     = np.sort(TIM_DEV_arr).tolist()
+	PIT_DEV_arr = np.concatenate([PIT_DEV_pos, PIT_DEV_neg])
+	PIT_DEV     = np.sort(PIT_DEV_arr).tolist()
+
+	# Define possible "types" of deviations.
+	TIM_DEV_DIR = ['early', 'late']
+	PIT_DEV_DIR = ['lower', 'higher']
+
+	# Generate all possible combinations of the independent variables.
+	# This will counterbalance the deviations for their type and direction.
+	TIM_TARGET_COMBOS = [
+	{"dev" : td, "dev_cat" : "timing", "dev_dir" : tdt} for td, tdt in product(TIM_DEV, TIM_DEV_DIR)
+	] * par["TIM_DEV_REP"]
+	PIT_TARGET_COMBOS = [
+	{"dev" : pd, "dev_cat" : "pitch", "dev_dir" : pdt} for pd, pdt in product(PIT_DEV, PIT_DEV_DIR)
+	] * par["PIT_DEV_REP"]
+	TARGET_COMBOS = TIM_TARGET_COMBOS + PIT_TARGET_COMBOS
+
+	# Remove incorrect cominations
+	VALID_TARGET_COMBOS = []
+	for combo in TARGET_COMBOS:
 		
-		# If DEV > 0, then type cannot be "early".
-		if combo["dev"] > 0:
-			if combo["dev_dir"] == "early":
-				continue
-
-		# If DEV < 0, then type cannot be "late".
-		if combo["dev"] < 0:
-			if combo["dev_dir"] == "late":
-				continue
-
-	if "pitch" in combo["dev_cat"]:
-		# If DEV > 0, then type cannot be "lower".
-		if combo["dev"] > 0:
-			if combo["dev_dir"] == "lower":
-				continue
-
-		# If DEV < 0, then type cannot be "higher".
-		if combo["dev"] < 0:
-			if combo["dev_dir"] == "higher":
-				continue
-
-	# If all checks pass, append the trial combo (dict).
-	VALID_TARGET_COMBOS.append(combo)
-
-# 03. GENERATE TRIALS PER MRI RUN
-
-
-COMBOS_RUNS = []
-for run in range(par["NO_MRI_RUNS"]):
-	
-	# Randomly shuffle the deviants
-	VALID_TARGETS = VALID_TARGET_COMBOS.copy()
-	random.shuffle(VALID_TARGETS)
-
-	# Sample with replacement (allowing repetition)
-	TIME_BETWEEN_DEVS = random.choices(
-		range(par["TIME_BETWEEN_DEVS_MIN"], par["TIME_BETWEEN_DEVS_MAX"] + 1),
-		k=len(VALID_TARGET_COMBOS) - 1 # Trial-level randomization
-		)
-	ISI = random.choices(
-		range(par["ISI_MIN"], par["ISI_MAX"] + 1),
-		k=len(VALID_TARGET_COMBOS) # Trial-level randomization
-		)
-	BASE_FREQ = random.choices(
-		range(par["FREQ_MIN"], par["FREQ_MAX"] + 1),
-		k=len(VALID_TARGET_COMBOS) # Trial-level randomization
-		)
-	no_tones_before = random.choices(
-		range(3, 6), # starting tones
-		k=1 # Run-level randomization
-		)[0]
-	COMBOS_ALL_DEV = []
-	# Loop through each deviants and define other variables.
-	for count, trial in enumerate(VALID_TARGETS):
-		
-		# Calculate number of standard tones in the current and next sequence
-		time_until_next_dev = TIME_BETWEEN_DEVS[count]
-		isi_next = ISI[count + 1] if count + 1 < len(ISI) else ISI[count]
-		min_time_next  = 3 * (par["TONE_DURATION"] + isi_next)
-		min_time_after = 2 * (par["TONE_DURATION"] + ISI[count])
-		
-		if time_until_next_dev < min_time_next + min_time_after:
-			# Window is too tight. Force minimums and accept constraint violation.
-			no_tones_after  = 2
-			no_tones_next = 3
-		else:
-			# Time available for tones in current chunk
-			available_for_after = time_until_next_dev - min_time_next
-			max_tones_after = int(np.floor(available_for_after / (par["TONE_DURATION"] + ISI[count])))
-			max_tones_after = max(max_tones_after, 2)
-			no_tones_after = random.randint(2, max_tones_after)
+		if "timing" in combo["dev_cat"]:
 			
-			# Time available for tones in the next chunk
-			time_next = time_until_next_dev - (no_tones_after * (par["TONE_DURATION"] + ISI[count]))
-			no_tones_next = max(3, int(np.floor(time_next / (par["TONE_DURATION"] + isi_next))))
+			# If DEV > 0, then type cannot be "early".
+			if combo["dev"] > 0:
+				if combo["dev_dir"] == "early":
+					continue
 
-		# Add values
-		trial["dev_abs"] = abs(trial["dev"])
-		trial["isi"] = ISI[count]
-		trial["base_freq"] = BASE_FREQ[count]
-		trial["no_tones_before"] = no_tones_before
-		trial["no_tones_after"]  = no_tones_after
-		trial["no_tones_next"]   = no_tones_next
-		trial["dev_loc"] = no_tones_before + 1
-		trial["trial_idx"] = count + 1
-		trial["run_idx"] = run + 1
+			# If DEV < 0, then type cannot be "late".
+			if combo["dev"] < 0:
+				if combo["dev_dir"] == "late":
+					continue
+
+		if "pitch" in combo["dev_cat"]:
+			# If DEV > 0, then type cannot be "lower".
+			if combo["dev"] > 0:
+				if combo["dev_dir"] == "lower":
+					continue
+
+			# If DEV < 0, then type cannot be "higher".
+			if combo["dev"] < 0:
+				if combo["dev_dir"] == "higher":
+					continue
+
+		# If all checks pass, append the trial combo (dict).
+		VALID_TARGET_COMBOS.append(combo)
+
+	# 02. GENERATE STANDARD TONES ---------------------------------------------
+	no_dev_tones = len(VALID_TARGET_COMBOS)
+	sequence_length = par["RUN_DURATION_MIN"] * 60 * 1000
+
+	SESSION_EVENTS = []
+	for run in range(par["NO_MRI_RUNS"]):
 		
-		# Append the final structure
-		COMBOS_ALL_DEV.append(trial)
+		# Find all possible ISI lengths and number of tones given the FIXED run duration
+		solutions = []
+		for ISI in range(par["ISI_MIN"], par["ISI_MAX"] + 1):
+		    numerator = sequence_length + ISI
+		    denominator = par["TONE_DURATION"] + ISI
 
-		no_tones_before = no_tones_next
+		    if numerator % denominator != 0:
+		        continue
 
-	COMBOS_RUNS.append(COMBOS_ALL_DEV)
+		    total_tones = numerator // denominator
+
+		    if total_tones < no_dev_tones:
+		        continue
+
+		    no_std_tones = total_tones - no_dev_tones
+		    solutions.append({"ISI" : ISI, "N_total" : total_tones, "N_std" : no_std_tones})
+		if run < 1:
+			print("The possible ISI values and number of tones given input parameters are:"
+				f"\n{solutions}.\n")
+
+		# Determine the ISI, GAPS between deviant events, and the INDICES of deviants
+		ISI_found = False
+		TIME_BETWEEN_DEVS = False
+		dev_idxs = False
+		while not ISI_found or not TIME_BETWEEN_DEVS or not dev_idxs:
+
+			# Reset the iteration if not found
+			ISI_found = False
+			TIME_BETWEEN_DEVS = False
+			dev_idxs = False
+
+			# Find ISI
+			ISI = int(random.choices(
+				range(par["ISI_MIN"], par["ISI_MAX"] + 1),
+				k=1
+				)[0])
+			numerator = sequence_length + ISI
+			denominator = par["TONE_DURATION"] + ISI
+			if numerator % denominator != 0:
+				continue
+
+			total_tones = numerator // denominator
+			ISI_found = True
+
+			# Find GAPS
+			# A gap must span an exact number of tone periods so deviants land
+			# on tone boundaries. The period is one tone plus the ISI.
+			tone_period = par["TONE_DURATION"] + ISI
+
+			# Keep only gap values in the allowed range that are exact multiples
+			# of the tone period.
+			valid_gaps = [
+				gap for gap in range(par["TIME_BETWEEN_DEVS_MIN"], par["TIME_BETWEEN_DEVS_MAX"] + 1)
+				if gap % tone_period == 0
+				]
+
+			# If no gap value in the range is a clean multiple, this ISI can't
+			# satisfy the constraint, so resample the ISI.
+			if not valid_gaps:
+				ISI_found = False
+				continue
+
+			# Sample with replacement (allowing repetition), no rhythmic pattern.
+			TIME_BETWEEN_DEVS = random.choices(
+				valid_gaps,
+				k = no_dev_tones
+			)
+
+			# Find indices for deviant tones given the selected ISI and number of tones
+			# Rules: the first 3 tones are not deviant
+			# Every deviant tone must be separated by min: par["TIME_BETWEEN_DEVS_MIN"]
+			#									  and max: par["TIME_BETWEEN_DEVS_MAX"]
+			# The spacing between deviant events has to be randomly selected without any
+			# order or rhythmicity or other repeating pattern.
+			dev_idxs = []
+			tone_period = par["TONE_DURATION"] + ISI
+
+			# The first 3 tones should never be deviant
+			if TIME_BETWEEN_DEVS[0] > 3 * tone_period:
+				first_dev_idx = int(TIME_BETWEEN_DEVS[0] / tone_period)
+				TIME_BETWEEN_DEVS.pop(0)
+			else:
+				first_dev_idx = random.choices(range(4, 6), k=1)[0]
+
+			# Build cumulative indices from the first deviant + sampled gaps
+			dev_idxs = [first_dev_idx]
+			for gap in TIME_BETWEEN_DEVS:
+				no_tones_in_gap = int(gap / tone_period)
+				current_idx = dev_idxs[-1] + no_tones_in_gap
+				dev_idxs.append(current_idx)
+
+			# Last index must be smaller than index of the last tone in the sequence
+			if dev_idxs[-1] < total_tones:
+				pass # valid
+			else:
+				dev_idxs = False # invalid, resample
+
+		# Determine the STANDARD FREQUENCY
+		BASE_FREQ = random.choices(
+			range(par["FREQ_MIN"], par["FREQ_MAX"] + 1),
+			k=1
+			)[0]
+
+		# Print update to terminal
+		print(f"For RUN {run + 1}: ISI is {ISI} ms and sequence has a total of {total_tones}.")
+
+		# Randomly shuffle the deviants and copy the deviants that occur per run
+		# This ensures that all timing and pitch deviants occur in one run
+		VALID_TARGETS = VALID_TARGET_COMBOS.copy()
+		random.shuffle(VALID_TARGETS)
+
+		# Create the RUN by with one dictionary (defining all characteristics) per tone
+		dev_count = 0
+		RUN_EVENTS = []
+		for tone in range(total_tones):
+			
+			if tone in dev_idxs:
+				
+				event = VALID_TARGETS[dev_count].copy()
+
+				# Add values to deviant event
+				event["dev_abs"] = abs(event["dev"])
+				event["dev_loc"] = dev_idxs[dev_count]
+				event["dev_no"]  = dev_count + 1
+				event["isi"] = ISI
+				event["base_freq"] = BASE_FREQ
+				event["run_idx"] = run + 1
+
+				# Add the deviant event info to run info
+				RUN_EVENTS.append(event)
+
+				# Update the deviations count
+				dev_count += 1
+
+			else:
+				event = {
+					'dev': False,
+					'dev_cat': [None],
+					'dev_dir': [None],
+					'dev_abs': [None],
+					'dev_loc': [None],
+					'dev_no' : [None],
+					'isi': ISI,
+					'base_freq': BASE_FREQ,
+					'run_idx'  : run + 1
+				}
+				RUN_EVENTS.append(event)
+
+		# Append the run to the events of this experimental session
+		SESSION_EVENTS = SESSION_EVENTS + RUN_EVENTS
+
+	# 03. GENERATE FLASH VARIABLES --------------------------------------------
+	# Iterate through each dictionary, representing an event in an exp. session
+	for ix, ev in enumerate(SESSION_EVENTS):
+
+		# There should be no flash on deviant events or the events following 
+		# the deviant.
+		if not ev["dev"]:
+			is_standard = True
+		else:
+			is_standard = False
+
+		if ix > 0:
+			if SESSION_EVENTS[ix - 1]["dev"]:
+				prev_was_deviant = True
+			else:
+				prev_was_deviant = False
+		else:
+			prev_was_deviant = False
+
+		if is_standard and not prev_was_deviant:
+			if random.random() < par["FLASH_PROB"]:
+				FLASH_REP = random.randint(1, par["FLASH_REP_MAX"])
+				FLASH_ISI = random.randint(
+					par["FLASH_ISI_MIN"],
+					par["FLASH_ISI_MAX"])
+			else:
+				FLASH_REP = 0
+				FLASH_ISI = [None]
+		else:
+			FLASH_REP = 0
+			FLASH_ISI = [None]
+
+		ev["flash_rep"] = FLASH_REP
+		ev["flash_isi"] = FLASH_ISI
+
+	# 04. SAVE TRIALS ---------------------------------------------------------
+	# Create a dataframe from the list of dictionaries
+	df = pd.DataFrame(SESSION_EVENTS)
+
+	# Save the dataframe as a .csv file
+	if save_csv:
+		filename =  f"ses-{sesID:003d}_exp_parameter_combo.csv"
+		out_path.mkdir(exist_ok=True, parents=True)
+		out_dir  = out_path / filename
+		df.to_csv(out_dir, sep=",", index=False)
+		print(f"\nSaved {filename} to {out_path}.")
+
+## EXAMPLE USAGE & SIMULATION OF EXPERIMENTAL SESSIONS ------------------------
+if __name__ == "__main__":
+
+	# Home directory
+	homePath = Path("/home/mutrosa/Documents/projects/")
+	projPath = homePath / "auditory_paradigms" / "color_detection"
+	outPath  = projPath / "tests"
+	outPath.mkdir(exist_ok=True, parents=True)
+
+	# Parameters
+	par = {
+
+		# a. Timing deviants
+		"TIM_DEVS"    : [4, 8, 13, 19, 27, 36, 48, 63, 80, 100, 125], # msec
+		"TIM_DEV_REP" : 2, # How many times does a deviation repeat per run?
+
+		# b. Pitch deviants
+		"PIT_DEVS"    : [4, 8, 13, 19, 27, 36, 48, 63, 80, 100, 125], # Hz
+		"PIT_DEV_REP" : 2, # How many times does a deviation repeat per run?
+
+		# c. Overall structure of the experimental session
+		"NO_MRI_RUNS" : 5, # How many functional runs are in one session?
+		"RUN_DURATION_MIN" : 12, # Duration of the functional run in minutes
+		"TIME_BETWEEN_DEVS_MIN" : 5500,  # ms - Friston et al. (1999)  
+		"TIME_BETWEEN_DEVS_MAX" : 10000, # ms - Friston et al. (1999)
+		"FREQ_MIN" : 200,      # Hz
+		"FREQ_MAX" : 500,      # Hz
+		"ISI_MIN"  : 500,      # Min. duration of ISI in ms
+		"ISI_MAX"  : 700,      # Max. duration of ISI in ms
+		"ISI_STEP" : 1,        # Step size of the ISI range
+		"TONE_DURATION" : 50,  # Duration of a single tone in ms
+
+		# d. Flash events
+		"FLASH_PROB" : 0.3,     # Probability of the flash
+		"FLASH_REP_MAX" : 3,    # How many times max can the disk flash?
+							    # If 3, it means there could be 0, 1, 2, or 3
+							    # deviants in one trial. That's the max in case
+							    # of frequency counting task because we only
+							    # have 4 buttons in the MRI response box.
+		"FLASH_ISI_MIN" : 50,   # Not too small (has to be perceptible)
+		"FLASH_ISI_MAX" : 85    # Smaller than the FLASH_REP_MAX * ISI_MIN
+
+	}
+
+	for session in range(1, 7):
+		with open(
+			outPath / f"ses-{session:003d}_exp_parameter_combo.txt",
+			"w"
+			) as f:
+			sys.stdout = f
+			create_experimental_sessions(par, session, True, outPath)
