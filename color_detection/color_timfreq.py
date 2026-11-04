@@ -5,6 +5,7 @@ Requires Expyriment version 1.0.0
 '''
 from expyriment import design, control, stimuli, misc, io
 from config_timfreq import params, twitch
+import config_timfreq as c
 from pathlib import Path
 import pandas as pd
 import ast
@@ -16,8 +17,7 @@ comboID, sesID = int(idx), int(sesh)
 control.set_develop_mode(on = params["DEVELOP_MODE"])
 
 # 02. PRECOMPUTED PARAMETERS -------------------------------------------------------------
-homePath  = Path(params["PROJECT_ROOT"])
-paramPath = homePath / "tests" / f"ses-{comboID:03d}_exp_parameter_combo.csv"
+paramPath = c.outPath / f"ses-{comboID:03d}_exp_parameter_combo.csv"
 
 # Load the dataframe and extract variables
 df        = pd.read_csv(paramPath)

@@ -1,49 +1,91 @@
+#! /usr/bin/env python
+# Time-stamp: <04-11-2026, m.utrosa@bcbl.eu>
+'''
+Configuration of variables for creation of main task stimuli and presentation of the task.
+Requires Expyriment version 1.0.0
+'''
 from expyriment import design, control, stimuli, misc, io
 
-# Parameters for the color detection experiment
-n_blocks = 4
+# 00. Directories -----------------------------------------------------------------------
+n_blocks = 5
+homePath = Path("/home/mutrosa/Documents/projects/")
+projPath = homePath / "auditory_paradigms" / "color_detection"
+outPath  = projPath / "tests"
+outPath.mkdir(exist_ok=True, parents=True)
 
 # 01. PARAMETERS ------------------------------------------------------------------------
 params = {
-
-    # Developer mode
+    
+    # Overall structure of the experimental session ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     "DEVELOP_MODE" : True,
+    "NO_MRI_RUNS" : 5,       # How many functional runs are in one session?
+    "RUN_DURATION_MIN" : 12, # Duration of the functional run in minutes
 
-    # Directories
-    "PROJECT_ROOT" : "/home/mutrosa/Documents/projects/auditory_paradigms/color_detection",
+    # Timing and pitch deviant tones ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    "TIM_DEVS"    : [4, 8, 13, 19, 27, 36, 48, 63, 80, 100, 125], # msec
+    "PIT_DEVS"    : [4, 8, 13, 19, 27, 36, 48, 63, 80, 100, 125], # Hz
+    "TIM_DEV_REP" : 2, # How many times does a deviation repeat per run?
+    "PIT_DEV_REP" : 2, # How many times does a deviation repeat per run?
+    "TIME_BETWEEN_DEVS_MIN" : 5500,  # ms - Friston et al. (1999)
+    "TIME_BETWEEN_DEVS_MAX" : 10000, # ms - Friston et al. (1999)
+
+    # Standard tones ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    "FREQ_MIN" : 200,  # Hz
+    "FREQ_MAX" : 500,  # Hz
+    "MIN_STD_END" : 4, # Min. no. of standards at the end of the sequence (inclusive)
+    "MAX_STD_END" : 6, # Max. no. of standards at the end of the sequence (inclusive)
+    "ISI_MIN"  : 500,  # Min. duration of ISI in ms
+    "ISI_MAX"  : 700,  # Max. duration of ISI in ms
+    "ISI_STEP" : 1,    # Step size of the ISI range
+
+    # Flash events (distractor task) ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    "FLASH_PROB"    : 0.3,  # Probability of the flash
+    "FLASH_REP_MAX" : 4,    # How many times max can the disk flash?
+                            # If 4, it means there could be 1, 2, 3 or 4
+                            # flashes per tone period (tone duration + 
+                            # ISI. That's the max because we only
+                            # have 4 buttons in the MRI response box.
+    "FLASH_ISI_MIN" : 50,   # Not too small (has to be perceptible)
+    "FLASH_ISI_MAX" : 85,   # Smaller than the FLASH_REP_MAX * ISI_MIN
+    "FLASH_RADIUS"  : 45,   # Size of the disk
+    "FLASH_POSITION" : (0, 0), # (0,0) is the center of the screen
     
-    # Experiment structure
-    "WAIT_TIME" : 3000, # msec (ensuring reading at the start & end of the experiment)
+    ## Responses
+    # In the MRI, the rainbow response pad is 1234, while the white one is abcd.
+    "DETECTION_SYMBOL"   : [misc.constants.K_1, misc.constants.K_2, misc.constants.K_3, misc.constants.K_4],
+    "DETECTION_ASCII"    : ['49', '50', '51', '52'],
+
+    # General audio settings ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    ## Stimuli for main task
+    "TONE_LOUDNESS"   : 85,     # dB SPL
+    "TONE_DURATION"   : 50,     # msec
+    "NUM_HARMONICS"   : 10,     # Number of harmonics
+    "HARMONIC_FACTOR" : 0.8,    # Harmonic amplitude decay factor
+    "MAX_AMPLITUDE"   : 1.14,   # Defined through a simulation
+    "SAMPLE_RATE"     : 48000,  # Hz
+    "TAU"             : 5,      # Ramping window in msec
     
-    # Visual
+    ## Sound stimuli in localizer
+    "SOUND_STRATA"     : 84,   # the total amount of available sounds
+    "SOUND_DURATION"   : 1000, # msec
+    "SOUND_REP_PROB"   : .05,  # low enough to be stimulating/challenging
+
+    # General visual settings ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     "CANVAS_SIZE"             : (1920,  1200), # Linux Mint monitor resolution.
     "FIXATION_CROSS_SIZE"     : (40, 40),
     "FIXATION_CROSS_POSITION" : (0, 0),
     "FIXATION_CROSS_WIDTH"    : 5,
     "HEADING_SIZE"            : 30, 
-    "TEXT_SIZE"               : 25, 
-    
-    "FLASH_RADIUS" : 45,
-    "FLASH_POSITION" : (0, 0),
-    "FLASH_ISI" : 57,
+    "TEXT_SIZE"               : 25,
 
-    # Colors in RGB
+    ## Colors
     "BLACK"   : (0, 0, 0),       # screen background
     "WHITE"   : (255, 255, 255), # fixation cross
     "CORRECT" : (70, 255, 255),  # cyan; color contrast on black is super (17.01)
     "WRONG"   : (255, 234, 0),   # yellow; color contrast on black is super (17.02)
-    "GRAY"    : (158, 88, 238), # gray; color contrast on black is ?? (??)
+    "GRAY"    : (158, 88, 238),  # gray; color contrast on black is ?? (??)
     
-    # Sound stimuli in localizer
-    "SOUND_STRATA"     : 84,   # the total amount of available sounds
-    "SOUND_DURATION"   : 1000, # msec
-    "SOUND_REP_PROB"   : .05,  # low enough to be stimulating/challenging
-
-    # In the MRI, the rainbow response pad is 1234, while the white one is abcd.
-    "DETECTION_SYMBOL"   : [misc.constants.K_1, misc.constants.K_2, misc.constants.K_3, misc.constants.K_4],
-    "DETECTION_ASCII"    : ['49', '50', '51', '52'],
-
-    # Text (for instructions and goodbye message)
+    # Text ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     "INTRO_HEADING"   : f"Welcome to the ",
     "INTRO_TEXT_TASK" : f"When the experiment starts, you will see a white cross in the center of the screen.\n"
                         "Please look at the cross for the entire duration of the task.\n\n"
@@ -86,6 +128,8 @@ params = {
 
     "END_HEADING"      : "The End of the Experiment", 
     "END_TEXT"         : "Thank you so much for your participation!\n\n",
+    "WAIT_TIME": 3000  # ms; ensures that the participant reads the instructions
+                       # at the start & end of the experiment
 }
 
 # 02. FUNCTIONS -------------------------------------------------------------------------

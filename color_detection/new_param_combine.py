@@ -10,7 +10,9 @@ Friston, K. J., Zarahn, E. O. R. N. A., Josephs, O., Henson, R. N., &
 Dale, A. M. (1999). Stochastic designs in event-related fMRI. Neuroimage,
 10(5), 607-619
 '''
-# 00A. IMPORT
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# 01. IMPORT
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 import sys
 import random
 import numpy as np
@@ -18,6 +20,9 @@ import pandas as pd
 from pathlib import Path
 from itertools import product
 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# 02. FUNCTION
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 	
 	# 01. GENERATE INDEPENDENT VARIABLES --------------------------------------
@@ -299,56 +304,24 @@ def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 		df.to_csv(out_dir, sep=",", index=False)
 		print(f"\nSaved {filename} to {out_path}.")
 
-## EXAMPLE USAGE & SIMULATION OF EXPERIMENTAL SESSIONS ------------------------
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# 03. SIMULATION OF EXPERIMENTAL SESSIONS
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 if __name__ == "__main__":
 
-	# Home directory
-	homePath = Path("/home/mutrosa/Documents/projects/")
-	projPath = homePath / "auditory_paradigms" / "color_detection"
-	outPath  = projPath / "tests"
-	outPath.mkdir(exist_ok=True, parents=True)
+	# Import configuration
+	from config_timfreq import params
+	import config_timfreq as c
 
-	# Parameters
-	par = {
+	# Ask for user-defined parameters
+    sim = input("How many experimental sessions to simulate (int):")
+    simID = int(sim)
 
-		# a. Timing deviants
-		"TIM_DEVS"    : [4, 8, 13, 19, 27, 36, 48, 63, 80, 100, 125], # msec
-		"TIM_DEV_REP" : 2, # How many times does a deviation repeat per run?
-		"MIN_STD_END" : 4, # Min. no. of standards at the end of the sequence (inclusive)
-		"MAX_STD_END" : 6, # Max. no. of standards at the end of the sequence (inclusive)
-
-		# b. Pitch deviants
-		"PIT_DEVS"    : [4, 8, 13, 19, 27, 36, 48, 63, 80, 100, 125], # Hz
-		"PIT_DEV_REP" : 2, # How many times does a deviation repeat per run?
-
-		# c. Overall structure of the experimental session
-		"NO_MRI_RUNS" : 5, # How many functional runs are in one session?
-		"RUN_DURATION_MIN" : 12, # Duration of the functional run in minutes
-		"TIME_BETWEEN_DEVS_MIN" : 5500,  # ms - Friston et al. (1999)  
-		"TIME_BETWEEN_DEVS_MAX" : 10000, # ms - Friston et al. (1999)
-		"FREQ_MIN" : 200,      # Hz
-		"FREQ_MAX" : 500,      # Hz
-		"ISI_MIN"  : 500,      # Min. duration of ISI in ms
-		"ISI_MAX"  : 700,      # Max. duration of ISI in ms
-		"ISI_STEP" : 1,        # Step size of the ISI range
-		"TONE_DURATION" : 50,  # Duration of a single tone in ms
-
-		# d. Flash events
-		"FLASH_PROB" : 0.3,     # Probability of the flash
-		"FLASH_REP_MAX" : 4,    # How many times max can the disk flash?
-							    # If 4, it means there could be 1, 2, 3 or 4
-							    # flashes per tone period (tone duration + 
-							    # ISI. That's the max because we only
-							    # have 4 buttons in the MRI response box.
-		"FLASH_ISI_MIN" : 50,   # Not too small (has to be perceptible)
-		"FLASH_ISI_MAX" : 85    # Smaller than the FLASH_REP_MAX * ISI_MIN
-
-	}
-
-	for session in range(1, 7):
+	# Simulate
+	for session in range(1, simID):
 		with open(
-			outPath / f"ses-{session:003d}_exp_parameter_combo.txt",
+			c.outPath / f"ses-{session:003d}_exp_parameter_combo.txt",
 			"w"
 			) as f:
 			sys.stdout = f
-			create_experimental_sessions(par, session, True, outPath)
+			create_experimental_sessions(params, session, True, c.outPath)
