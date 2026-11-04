@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-# Time-stamp: <31-10-2026, m.utrosa@bcbl.eu>
+# Time-stamp: <04-11-2026, m.utrosa@bcbl.eu>
 '''
 Requires Expyriment version 1.0.0
 '''
@@ -17,22 +17,16 @@ control.set_develop_mode(on = params["DEVELOP_MODE"])
 
 # 02. PRECOMPUTED PARAMETERS -------------------------------------------------------------
 homePath  = Path(params["PROJECT_ROOT"])
-paramPath = homePath / f"ses-{comboID:03d}_exp_parameter_combo.csv"
+paramPath = homePath / "tests" / f"ses-{comboID:03d}_exp_parameter_combo.csv"
 
 # Load the dataframe and extract variables
 df        = pd.read_csv(paramPath)
-flash_no  = df["flash_no"]
-no_blocks = len(df["block_no"].unique())
+flash_rep = df["flash_rep"]
+flash_isi = df["flash_isi"]
+no_runs   = len(df["run_idx"].unique())
 
 # Sort the trials are ordered by blocks & trials
-df.sort_values(by=["block_no", "trial_no"], inplace=True)
-
-# Correct data types in columns with lists as row values
-list_cols = ["freq_dev", "freq_dev_type", "freq_loc", "freq_diff", "freq_diff_abs"]
-for col in list_cols:
-    df[col] = df[col].apply(
-    lambda x: ast.literal_eval(x) if isinstance(x, str) else x
-    )
+df.sort_values(by=["run_idx"], inplace=True)
 
 # 03. INITIALIZE THE EXPERIMENT ----------------------------------------------------------
 # Settings to ensure that the window size fits the stimuli computer & projector in the MRI
@@ -143,24 +137,27 @@ task_start_time = exp.clock.time
 keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
 keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
 
-for i in range(len(flash_no)):
-	
+for index, value in flash_rep.items():
+
 	# Check if quit key is pressed
 	keyboard.check(keys=[misc.constants.K_y])
 
 	# Track timing and twich when programmed
-	for _ in range(int(flash_no[i])):
-		twitch(
-			flash = circle,
-			flash_isi = params["FLASH_ISI"],
-			canvas = canvas,
-			cross = fix_cross,
-			clock = clock,
-			keyboard = keyboard
-			)
+	if value > 0:
+		for _ in range(value):
+			twitch(
+				flash = circle,
+				flash_isi = int(flash_isi[index]),
+				canvas = canvas,
+				cross = fix_cross,
+				clock = clock,
+				keyboard = keyboard
+				)
 
-	# Wait for 3 sec
-	exp.clock.wait(3000)
+		# Wait for some time
+		exp.clock.wait(100)
+	else:
+		pass
 
 # Say thanks at the end of the counting task
 goodbye_task_message = stimuli.TextScreen(
@@ -178,7 +175,6 @@ goodbye_task_message.clear_surface()
 ## ---------------------------------------------------------------------------------------
 ## LOCALIZER TASK
 ## ---------------------------------------------------------------------------------------
-# TODO
 task_name = "localizer"
 ## ---------------------------------------------------------------------------------------
 # Say thanks & goodbye to the participant

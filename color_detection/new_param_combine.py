@@ -1,11 +1,10 @@
 #! /usr/bin/env python
-# Time-stamp: <03-11-2026 m.utrosa@bcbl.eu>
+# Time-stamp: <04-11-2026 m.utrosa@bcbl.eu>
 '''
-TODO: Remove standard tones from the end of the run after adding all deviations
-		- > can randomly decide on between 5 - 10 sec of tones ;)
-TODO: Check implementation of flash probablility -- is it 30%? 
-TODO: No two consecutive flashes allowed (implement this rule!)
-
+TODO: FLASH RULES (implement possibly through adding a timeline)
+	- No two consecutive flashes allowed (implement as a rule!)
+	- No flash at the first 3 or the last tone of the sequence
+	- Flash probability check that it's at 30%
 References:
 Friston, K. J., Zarahn, E. O. R. N. A., Josephs, O., Henson, R. N., & 
 Dale, A. M. (1999). Stochastic designs in event-related fMRI. Neuroimage,
@@ -189,16 +188,21 @@ def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 			)[0]
 
 		# Print update to terminal
-		print(f"For RUN {run + 1}: ISI is {ISI} ms and sequence has a total of {total_tones}.")
+		print(
+			f"\nFor RUN {run + 1}: ISI is {ISI} ms and"
+			f" the sequence has a planned total of {total_tones} and "
+		)
 
 		# Randomly shuffle the deviants and copy the deviants that occur per run
 		# This ensures that all timing and pitch deviants occur in one run
 		VALID_TARGETS = VALID_TARGET_COMBOS.copy()
 		random.shuffle(VALID_TARGETS)
 
-		# Create the RUN by with one dictionary (defining all characteristics) per tone
-		dev_count = 0
+		# Create the RUN with one dictionary per tone
 		RUN_EVENTS = []
+		dev_count = 0
+		std_end_count = 0
+		no_std_end = random.randint(par["MIN_STD_END"], par["MAX_STD_END"]) # inclusive boundaries
 		for tone in range(total_tones):
 			
 			if tone in dev_idxs:
@@ -221,17 +225,29 @@ def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 
 			else:
 				event = {
-					'dev': False,
-					'dev_cat': [None],
-					'dev_dir': [None],
-					'dev_abs': [None],
-					'dev_loc': [None],
-					'dev_no' : [None],
-					'isi': ISI,
-					'base_freq': BASE_FREQ,
-					'run_idx'  : run + 1
-				}
-				RUN_EVENTS.append(event)
+						'dev': False,
+						'dev_cat': [None],
+						'dev_dir': [None],
+						'dev_abs': [None],
+						'dev_loc': [None],
+						'dev_no' : [None],
+						'isi': ISI,
+						'base_freq': BASE_FREQ,
+						'run_idx'  : run + 1
+					}
+				# Add standard tones only until you add all deviants
+				if dev_count < len(dev_idxs):
+					RUN_EVENTS.append(event)
+				else:
+					if std_end_count < no_std_end:
+						RUN_EVENTS.append(event)
+						std_end_count += 1
+
+		# Print update to terminal
+		print(
+			f"an actual total of {len(RUN_EVENTS)} tone, resulting in a total "
+			f"run duration of {round((len(RUN_EVENTS) * denominator - ISI) / 60000, 2)} min."
+		)
 
 		# Append the run to the events of this experimental session
 		SESSION_EVENTS = SESSION_EVENTS + RUN_EVENTS
@@ -298,6 +314,8 @@ if __name__ == "__main__":
 		# a. Timing deviants
 		"TIM_DEVS"    : [4, 8, 13, 19, 27, 36, 48, 63, 80, 100, 125], # msec
 		"TIM_DEV_REP" : 2, # How many times does a deviation repeat per run?
+		"MIN_STD_END" : 4, # Min. no. of standards at the end of the sequence (inclusive)
+		"MAX_STD_END" : 6, # Max. no. of standards at the end of the sequence (inclusive)
 
 		# b. Pitch deviants
 		"PIT_DEVS"    : [4, 8, 13, 19, 27, 36, 48, 63, 80, 100, 125], # Hz
@@ -317,10 +335,10 @@ if __name__ == "__main__":
 
 		# d. Flash events
 		"FLASH_PROB" : 0.3,     # Probability of the flash
-		"FLASH_REP_MAX" : 3,    # How many times max can the disk flash?
-							    # If 3, it means there could be 0, 1, 2, or 3
-							    # deviants in one trial. That's the max in case
-							    # of frequency counting task because we only
+		"FLASH_REP_MAX" : 4,    # How many times max can the disk flash?
+							    # If 4, it means there could be 1, 2, 3 or 4
+							    # flashes per tone period (tone duration + 
+							    # ISI. That's the max because we only
 							    # have 4 buttons in the MRI response box.
 		"FLASH_ISI_MIN" : 50,   # Not too small (has to be perceptible)
 		"FLASH_ISI_MAX" : 85    # Smaller than the FLASH_REP_MAX * ISI_MIN
