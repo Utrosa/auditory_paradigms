@@ -4,6 +4,7 @@
 Configuration of variables for creation of main task stimuli and presentation of the task.
 Requires Expyriment version 1.0.0
 '''
+from pathlib import Path
 from expyriment import design, control, stimuli, misc, io
 
 # 00. Directories -----------------------------------------------------------------------

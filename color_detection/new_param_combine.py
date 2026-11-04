@@ -216,7 +216,7 @@ def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 
 				# Add values to deviant event
 				event["dev_abs"] = abs(event["dev"])
-				event["dev_loc"] = dev_idxs[dev_count]
+				event["dev_loc"] = dev_idxs[dev_count] + 1
 				event["dev_no"]  = dev_count + 1
 				event["isi"] = ISI
 				event["base_freq"] = BASE_FREQ
@@ -230,12 +230,12 @@ def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 
 			else:
 				event = {
-						'dev': False,
-						'dev_cat': [None],
-						'dev_dir': [None],
-						'dev_abs': [None],
-						'dev_loc': [None],
-						'dev_no' : [None],
+						'dev': np.nan,
+						'dev_cat': np.nan,
+						'dev_dir': np.nan,
+						'dev_abs': np.nan,
+						'dev_loc': np.nan,
+						'dev_no' : np.nan,
 						'isi': ISI,
 						'base_freq': BASE_FREQ,
 						'run_idx'  : run + 1

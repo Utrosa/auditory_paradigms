@@ -3,11 +3,13 @@
 '''
 create_soundtrack_soundgen() module generates sounds as defined in csv
 optionally, you can save generated sound arrays as .wav files to disk
+TODOs: add and verify correctnes of logging tones
+       wtf is current time thing
+       might have to add the number of flashes per run (?) for feedback ... lool
 '''
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # 01. IMPORT
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-import ast
 import warnings
 import numpy as np
 import pandas as pd
@@ -96,11 +98,11 @@ class SoundGen:
 
         return sound
 
-    def generate_soundtrack(self, df, current_time, max_amplitude, num_harmonics, tone_duration, harmonic_factor, dbspl):
+    def generate_soundtrack(self, df, max_amplitude, num_harmonics, tone_duration, harmonic_factor, dbspl):
         """
-        Generate tone sequences with timing deviants for current trial.
+        Generate tone sequences with timing deviants for current run.
 
-        :param df: A dataframe with tone sequence parameters with msec as the time unit.
+        :param df: A dataframe with tone sequence parameters with ms as the time unit.
         :param current_time: Current time in the experiment in sec, relative to start of the task.
         :param max_amplitude: Maximum amplitude to avoid clipping.
         :param num_harmonics: Number of harmonic tones.
@@ -110,228 +112,141 @@ class SoundGen:
         
         :yield: final_sequence: An array of audio samples, representing harmonic a complex tone sequence.
         """
-        current_time = current_time / 1000
-        current_time = current_time * self.sample_rate
-
-        # Get number of trials per block
-        no_trials = len(df["trial_no"].unique())
-        
-        # Reminder to yourself that we're assuming msec as unit for ISI, ITI, and DEV
-        sample_isi = df["isi"].iloc[0] if not df.empty else "N/A"
-        sample_iti = df["iti"].iloc[0] if not df.empty else "N/A"
-        sample_dev = df["dev"].iloc[0] if not df.empty else "N/A"
+        # Reminder that we're assuming ms as input unit
         message = (
-            "\nAssuming input values are in milliseconds."
-            "\nThe script converts TONE_DURATION, ISI, ITI, and DEV to seconds. Verify units in the input dataset."
-            "\nExample of raw (unconverted) values:"
-            f" TONE_DURATION ({tone_duration}), ISI ({sample_isi}), ITI ({sample_iti}) and DEV ({sample_dev})."
+            "\nAssuming input values (ISI, timing deviants, tone duration) are in milliseconds."
+            "\nVerify units in the input parameters and csv files."
             )
         warnings.warn(message, UserWarning)
 
-        # Convert to sec (only once)
+        # Convert to sec (only once - the same isi and tone durations in a run)
+        isi = row.isi / 1000
         tone_duration = tone_duration / 1000
 
-        # Loop through all trials in the dataframe
-        # Each trial is a linear combination of parameters
-        for trial in df.itertuples():
+        # Calculate how many isi and tone samples are in an event
+        isi_samples  = int(isi * self.sample_rate)
+        tone_samples = int(tone_duration * self.sample_rate)
 
-            # Initialize the sequence, log and count of frequency devs.
-            sequence = []
-            sequence_log = str()
-            freq_dev_count = 0
+        # Initialize tone count, sequence and log
+        tone_count = 1 # I don't like zero indexing
+        sequence = []
+        sequence_log = str()
 
-            # Raise error if timing and frequency devs occur on the same tone
-            if not np.isnan(trial.dev_loc): # nan for silent trials
-                if trial.dev_loc in trial.freq_loc:
-                    raise ValueError(
-                        f"\nFor trial-{trial.trial_no:02d} block-{trial.block_no:02d}."
-                        " Frequency and timing deviations "
-                        f"occur on the same tone (idx: {trial.dev_loc})."
-                        "\nCheck your input dataframe."
-                        " Parameter combinations may be set incorrectly."
-                        )
+        # Loop through all rows of the dataframe
+        # Each row is a linear combination of its column values
+        for row in df.itertuples():
 
-            # Convert isi & iti to sec on every trial
-            isi = trial.isi / 1000
-            iti = trial.iti / 1000
-                        
-            # Calculate how many isi & iti events/samples occur per event
-            iti_samples  = int(iti * self.sample_rate)
-            isi_samples  = int(isi * self.sample_rate)
-            tone_samples = int(tone_duration * self.sample_rate)
-
-            # For sound trials: convert dev to sec & get no. of samples
-            if not pd.isna(trial.dev_loc):
-                dev = trial.dev_abs / 1000
-                dev_samples = int(dev * self.sample_rate)
-
-            # Loop through each tone in the sequence
-            for i in range(trial.no_tones):
-
-                # Correct for zero indexing
-                tone_count = i + 1
-
-                # Initialize for logging
-                fDev, fDevLoc = None, None
-
-                # ----------------- Adding TONES ------------------
-                ### SILENT trials
-                # If the current trial is silent, "dev" is None.
-                if pd.isna(trial.dev):
-                    sound = np.zeros(tone_samples)
-
-                ### SOUND trials
-                # If the current trial has no frequency deviations,
-                # the first (and only) element of "freq_dev" is False.
-                elif trial.freq_dev[0]:
-
-                    # Generate frequency deviant tone at given locations
-                    if trial.freq_dev_no != 0:
-                        freq_loc = sorted(trial.freq_loc)
-                        if freq_dev_count < trial.freq_dev_no:
-                            freq_loc = freq_loc[freq_dev_count]
-                            fDevLoc  = freq_loc
-                        else:
-                            freq_loc = False
-
-                    if tone_count == freq_loc:
-                        sound = self.sound_maker(
-                            trial.freq_dev[freq_dev_count],
+            # ----------------- Adding TONES ------------------
+            # What is the deviant category?
+            if row.dev_cat:
+                if row.dev_cat == 'timing':  # TONE STANDARD
+                    sound = self.sound_maker(
+                            row.base_freq,
                             max_amplitude,
                             num_harmonics,
                             tone_duration,
                             harmonic_factor,
                             dbspl
                             )
-                        fDev = trial.freq_dev[freq_dev_count]
-                        
-                        # Update frequency dev count
-                        freq_dev_count += 1
-
-                    # Generate frequency standard tone at other locations
-                    else:
+                elif row.dev_cat == 'pitch': # TONE DEV
+                    if row.dev_type == "upper":
+                        dev_freq = row.base_freq + row.dev
                         sound = self.sound_maker(
-                        trial.base_freq,
-                        max_amplitude,
-                        num_harmonics,
-                        tone_duration,
-                        harmonic_factor,
-                        dbspl
-                        )
+                                dev_freq,
+                                max_amplitude,
+                                num_harmonics,
+                                tone_duration,
+                                harmonic_factor,
+                                dbspl
+                                )
+                    elif row.dev_type == "lower":
+                        dev_freq = row.base_freq - row.dev
+                        sound = self.sound_maker(
+                                dev_freq,
+                                max_amplitude,
+                                num_harmonics,
+                                tone_duration,
+                                harmonic_factor,
+                                dbspl
+                                )
 
-                # Generate frequency standard tone sequence
-                else:
-                    sound = self.sound_maker(
-                        trial.base_freq,
-                        max_amplitude,
-                        num_harmonics,
-                        tone_duration,
-                        harmonic_factor,
-                        dbspl
-                        )
-
-                # Apply ramp to start and end using the sine_ramp method
-                # for sound trials only
-                if pd.isna(trial.dev_loc):
-                    ramped_sound = np.zeros(tone_samples)
-                else:
-                    ramped_sound = self.sine_ramp(sound)
-                
-                # Get tone onset and add to log
-                onset_sec = current_time / self.sample_rate
-
-                if not pd.isna(trial.dev):
-                    if trial.dev > 0:
-                        if not fDev:
-                            if tone_count == trial.dev_loc:
-                                tone_type = f"fStd-{int(trial.base_freq)}Hz_delta-p{int(trial.dev_abs)}ms_tDevLoc-{int(trial.dev_loc)}_type-fStdtDev"
-                            else:
-                                tone_type = f"fStd-{int(trial.base_freq)}Hz_type-fStdtStd"
-                        else:
-                            if tone_count == trial.dev_loc:
-                                tone_type = f"fStd-{int(trial.base_freq)}Hz_fDev-{fDev}Hz_fDevLoc-{int(fDevLoc)}_delta-p{int(trial.dev_abs)}ms_tDevLoc-{int(trial.dev_loc)}_type-fDevtDev"
-                            else:
-                                tone_type = f"fStd-{int(trial.base_freq)}Hz_fDev-{fDev}Hz_fDevLoc-{int(fDevLoc)}_type-fDevtStd"
-                    elif trial.dev < 0:
-                        if not fDev:
-                            if tone_count == trial.dev_loc:
-                                tone_type = f"fStd-{int(trial.base_freq)}Hz_delta-n{int(trial.dev_abs)}ms_tDevLoc-{int(trial.dev_loc)}_type-fStdtDev"
-                            else:
-                                tone_type = f"fStd-{int(trial.base_freq)}Hz_type-fStdtStd"
-                        else:
-                            if tone_count == trial.dev_loc:
-                                tone_type = f"fStd-{int(trial.base_freq)}Hz_fDev-{fDev}Hz_fDevLoc-{int(fDevLoc)}_delta-n{int(trial.dev_abs)}ms_tDevLoc-{int(trial.dev_loc)}_type-fDevtDev"
-                            else:
-                                tone_type = f"fStd-{int(trial.base_freq)}Hz_fDev-{fDev}Hz_fDevLoc-{int(fDevLoc)}_type-fDevtStd"
                     else:
-                        if not fDev:
-                            tone_type = f"fStd-{int(trial.base_freq)}Hz_type-fStdtStd"
-                        else:
-                            tone_type = f"fStd-{int(trial.base_freq)}Hz_fDev-{fDev}Hz_fDevLoc-{int(fDevLoc)}_type-fDevtStd"
+                        print("Unrecognized deviant direction. Check input csv file - column 'dev_cat'.")
                 else:
-                    tone_type = "silence"
+                    print("Unrecognized deviant category. Check input csv file - column 'dev_cat'.")
+            else: # TONE STANDARD
+                sound = self.sound_maker(
+                row.base_freq,
+                max_amplitude,
+                num_harmonics,
+                tone_duration,
+                harmonic_factor,
+                dbspl
+                )
+            
+            # Apply ramp to start and end using the sine_ramp method
+            ramped_sound = self.sine_ramp(sound)
+            
+            # Add the sound to the sequence
+            sequence.append(ramped_sound)
+            current_time += tone_samples # TODO: WTF is this?
 
-                log_format = f"{onset_sec}\t{tone_duration}\t{tone_type}\n"
-                sequence_log = sequence_log + log_format
+            # ----------------- Adding ISI --------------------
+            # Get the number of samples for the timing deviation
+            if row.dev:
+                dev = row.dev_abs / 1000
+                dev_samples = int(dev * self.sample_rate)
+
+            # Get the number of samples for a standard isi
+            current_isi = isi_samples
+
+            # TODO: Check if the next tone is a timing deviant (ISI is adjusted before the deviant tone ...)
+            # if next_row.dev:
+
+            # Convert dev to sec & get sample no.
+            if row.dev:
+                dev = row.dev_abs / 1000
+                dev_samples = int(dev * self.sample_rate)
+
+            # For sound trials with timing deviations
+            if not pd.isna(row.dev_type):
+
+                # Late tones
+                # The ISI before the current tone is longer, ISI after shorter.
+                # "dev_samples" are calculated from absolute timing deviant value
+                if row.dev_type == "late":
+                    if tone_count == (row.dev_loc - 1):
+                        current_isi = isi_samples + dev_samples
+                    elif tone_count == row.dev_loc:
+                        current_isi = isi_samples - dev_samples
+
+                # Early tones
+                # The ISI before the current tone is shorter, ISI after longer.
+                elif row.dev_type == "early":
+                    if tone_count == (row.dev_loc - 1):
+                        current_isi = isi_samples - dev_samples
+                    elif tone_count == row.dev_loc:
+                        current_isi = isi_samples + dev_samples
                 
-                # Add the sound to the sequence
-                sequence.append(ramped_sound)
-                current_time += tone_samples
+                # On-time tones
+                else:
+                    current_isi = isi_samples
 
-                # ----------------- Adding ISI --------------------
-                current_isi = isi_samples
-
-                # For sound trials with deviations
-                if not pd.isna(trial.dev_type):
-
-                    # Late tones
-                    # The ISI before the current tone is longer, ISI after shorter.
-                    # "dev_samples" are calculated from absolute timing deviant value
-                    if trial.dev_type == "late":
-                        if tone_count == (trial.dev_loc - 1):
-                            current_isi = isi_samples + dev_samples
-                        elif tone_count == trial.dev_loc:
-                            current_isi = isi_samples - dev_samples
-
-                    # Early tones
-                    # The ISI before the current tone is shorter, ISI after longer.
-                    elif trial.dev_type == "early":
-                        if tone_count == (trial.dev_loc - 1):
-                            current_isi = isi_samples - dev_samples
-                        elif tone_count == trial.dev_loc:
-                            current_isi = isi_samples + dev_samples
-                    
-                    # On-time tones
-                    else:
-                        current_isi = isi_samples
-
-                # Add the ISI
-                # Note: there's one less isi in the sequence than tones.
-                if tone_count < trial.no_tones:
-                    sequence.append(np.zeros(current_isi))
-                    current_time += current_isi
+            # Add the ISI
+            # Note: there's one less isi in the sequence than tones.
+            if tone_count < row.no_tones:
+                sequence.append(np.zeros(current_isi))
+                current_time += current_isi
 
             # -------------- Join all segments ----------------
             final_sequence = np.concatenate(sequence)
 
-            # Check that frequency deviants were counted correctly.
-            if not pd.isna(trial.freq_dev_no):
-                if trial.freq_dev_no != freq_dev_count:
-                    raise ValueError(
-                        f"Counted more/less frequency deviants ({freq_dev_count}) "
-                        f"than specified ({trial.freq_dev_no}) "
-                        f"for trial {trial.trial_no} in block {trial.block_no}.")
-
-            # Yield the tone sequence, ITI (an array of zeros),
-            # the number of frequency deviants, and the sequence log.
+            # Yield the tone sequence, sequence log, and end time
             end_time = current_time / self.sample_rate
-            yield final_sequence, trial.iti, trial.freq_dev_no, sequence_log, end_time
+            yield final_sequence, sequence_log, end_time
 
             # Clear the list for the next iteration (memory <3)
             sequence.clear()
-
-            # Add the iti to current time
-            current_time += iti_samples
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # 03. AUDIO STIMULI GENERATION
@@ -347,48 +262,41 @@ if __name__ == "__main__":
     sesID = int(sesh)
     parPath  = c.outPath / f"ses-{sesID:03d}_exp_parameter_combo.csv"
 
-    # Load the trial parameters from csv
-    df        = pd.read_csv(paramPath)
-    no_runs = len(df["run_idx"].unique())
+    # Load the session parameters from csv and order by run indices
+    df = pd.read_csv(parPath)
+    df.sort_values(by=["run_idx"], inplace=True)
 
-    # Ensure that the trials are ordered by block & trial IDs
-    df.sort_values(by=["block_no", "trial_no"], inplace=True)
-    # TODO: Ensure correct data types in columns with lists as row values.
-    
     # Initialize the class
     sound_gen = SoundGen(params["SAMPLE_RATE"], params["TAU"])
 
-    # Play the soundtrack over the blocks
-    for i in range(no_runs):
+    # Play the soundtrack over the runs
+    no_runs = len(df["run_idx"].unique())
+    for run in range(no_runs):
 
         # Correct for zero-indexing
-        run_idx = i + 1
-        trial_idx = 1 # TODO: is this obsolete now?
+        run_idx = run + 1
 
         # Select only the part of the dataframe relevant for the current trial
-        df_block = df[df["block_no"] == run_idx]
+        df_run = df[df["run_idx"] == run_idx]
 
         # Generate the soundtrack of the experimental session
-        for soundtrack, iti, freq_dev_no, trial_log, time_end in sound_gen.generate_soundtrack(
-           df_block,
-           run_idx, # This should be the block's start time
+        for soundtrack, trial_log, time_end in sound_gen.generate_soundtrack(
+           df_run,
+           run_idx, # This should be the run's start time
            params["MAX_AMPLITUDE"],
            params["NUM_HARMONICS"], 
            params["TONE_DURATION"], 
            params["HARMONIC_FACTOR"],
            params["TONE_LOUDNESS"]
            ):
-            sd.play(soundtrack, samplerate = params["SAMPLE_RATE"])
+            sd.play(soundtrack, samplerate=params["SAMPLE_RATE"])
             sd.wait()
-            # Here you have to add code to wait for the ITI
-            # or output ITI samples and play that as silence with sounddevice
 
-            # Optionally, save the trial soundtrack as .wav
-            filename = f"exp_combo-{sesID:03d}_block_{run_idx:02d}_trial_{trial_idx:02d}.wav"
-            sf.write(
-                outPath / filename,
-                soundtrack,
-                params["SAMPLE_RATE"]
-            )
-
-            trial_idx += 1
+            # Optionally, save the run soundtrack as a .wav file
+            if write_wav:
+                filename = f"exp_combo-{sesID:03d}_run_{run_idx:02d}.wav"
+                sf.write(
+                    outPath / filename,
+                    soundtrack,
+                    params["SAMPLE_RATE"]
+                )
