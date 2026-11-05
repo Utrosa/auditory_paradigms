@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-# Time-stamp: <04-11-2026, m.utrosa@bcbl.eu>
+# Time-stamp: <05-11-2026, m.utrosa@bcbl.eu>
 '''
 Configuration of variables for creation of main task stimuli and presentation of the task.
 Requires Expyriment version 1.0.0
@@ -13,6 +13,7 @@ homePath = Path("/home/mutrosa/Documents/projects/")
 projPath = homePath / "auditory_paradigms" / "color_detection"
 outPath  = projPath / "tests"
 outPath.mkdir(exist_ok=True, parents=True)
+write_wav = True
 
 # 01. PARAMETERS ------------------------------------------------------------------------
 params = {

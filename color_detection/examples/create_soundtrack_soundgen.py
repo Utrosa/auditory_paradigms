@@ -316,7 +316,7 @@ class SoundGen:
                         f"than specified ({trial.freq_dev_no}) "
                         f"for trial {trial.trial_no} in block {trial.block_no}.")
 
-            # Yield the tone sequence, ITI (an array of zeros),
+            # s the tone sequence, ITI (an array of zeros),
             # the number of frequency deviants, and the sequence log.
             end_time = current_time / self.sample_rate
             yield final_sequence, trial.iti, trial.freq_dev_no, sequence_log, end_time

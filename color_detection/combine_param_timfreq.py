@@ -216,8 +216,8 @@ def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 
 				# Add values to deviant event
 				event["dev_abs"] = abs(event["dev"])
-				event["dev_loc"] = dev_idxs[dev_count] + 1
-				event["dev_no"]  = dev_count + 1
+				event["dev_loc"] = dev_idxs[dev_count] + 1 # tone location in the string
+				event["dev_no"]  = dev_count + 1 # consecutive number of the deviant tone
 				event["isi"] = ISI
 				event["base_freq"] = BASE_FREQ
 				event["run_idx"] = run + 1
@@ -231,8 +231,8 @@ def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 			else:
 				event = {
 						'dev': np.nan,
-						'dev_cat': np.nan,
-						'dev_dir': np.nan,
+						'dev_cat': None,
+						'dev_dir': None,
 						'dev_abs': np.nan,
 						'dev_loc': np.nan,
 						'dev_no' : np.nan,
@@ -261,21 +261,23 @@ def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 	# Iterate through each dictionary, representing an event in an exp. session
 	for ix, ev in enumerate(SESSION_EVENTS):
 
-		# There should be no flash on deviant events or the events following 
-		# the deviant.
-		if not ev["dev"]:
+		# Ensure: no flash on deviant events or the events following the deviant.
+		# Check current event
+		if pd.isna(ev["dev"]):
 			is_standard = True
 		else:
 			is_standard = False
 
+		# Check previous event
 		if ix > 0:
-			if SESSION_EVENTS[ix - 1]["dev"]:
+			if not pd.isna(SESSION_EVENTS[ix - 1]["dev"]):
 				prev_was_deviant = True
 			else:
 				prev_was_deviant = False
 		else:
 			prev_was_deviant = False
 
+		# Generate flash characteristics
 		if is_standard and not prev_was_deviant:
 			if random.random() < par["FLASH_PROB"]:
 				FLASH_REP = random.randint(1, par["FLASH_REP_MAX"])
@@ -284,10 +286,10 @@ def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 					par["FLASH_ISI_MAX"])
 			else:
 				FLASH_REP = 0
-				FLASH_ISI = [None]
+				FLASH_ISI = np.nan
 		else:
 			FLASH_REP = 0
-			FLASH_ISI = [None]
+			FLASH_ISI = np.nan
 
 		ev["flash_rep"] = FLASH_REP
 		ev["flash_isi"] = FLASH_ISI
@@ -314,8 +316,8 @@ if __name__ == "__main__":
 	import config_timfreq as c
 
 	# Ask for user-defined parameters
-    sim = input("How many experimental sessions to simulate (int):")
-    simID = int(sim)
+	sim = input("How many experimental sessions to simulate:")
+	simID = int(sim)
 
 	# Simulate
 	for session in range(1, simID):
