@@ -10,7 +10,7 @@ from expyriment import design, control, stimuli, misc, io
 # 00. Directories -----------------------------------------------------------------------
 n_blocks = 5
 homePath = Path("/home/mutrosa/Documents/projects/")
-projPath = homePath / "auditory_paradigms" / "color_detection"
+projPath = homePath / "auditory_paradigms" / "flash_detection"
 outPath  = projPath / "tests"
 outPath.mkdir(exist_ok=True, parents=True)
 write_wav = True
