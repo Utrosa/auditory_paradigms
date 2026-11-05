@@ -1,10 +1,6 @@
 #! /usr/bin/env python
-# Time-stamp: <04-11-2026 m.utrosa@bcbl.eu>
+# Time-stamp: <05-11-2026 m.utrosa@bcbl.eu>
 '''
-TODO: FLASH RULES (implement possibly through adding a timeline)
-	- No two consecutive flashes allowed (implement as a rule!)
-	- No flash at the first 3 or the last tone of the sequence
-	- Flash probability check that it's at 30%
 References:
 Friston, K. J., Zarahn, E. O. R. N. A., Josephs, O., Henson, R. N., & 
 Dale, A. M. (1999). Stochastic designs in event-related fMRI. Neuroimage,
@@ -259,6 +255,7 @@ def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 
 	# 03. GENERATE FLASH VARIABLES --------------------------------------------
 	# Iterate through each dictionary, representing an event in an exp. session
+	previous_was_flash = False
 	for ix, ev in enumerate(SESSION_EVENTS):
 
 		# Ensure: no flash on deviant events or the events following the deviant.
@@ -277,19 +274,32 @@ def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 		else:
 			prev_was_deviant = False
 
+		# Determine if flash is allowed at current iteration
+		in_first_three = ix <= 2
+		in_last_one = ix == len(SESSION_EVENTS) - 1
+
 		# Generate flash characteristics
-		if is_standard and not prev_was_deviant:
+		if (
+			is_standard
+			and not prev_was_deviant
+			and not in_first_three
+			and not in_last_one
+			and not previous_was_flash
+		):
 			if random.random() < par["FLASH_PROB"]:
 				FLASH_REP = random.randint(1, par["FLASH_REP_MAX"])
 				FLASH_ISI = random.randint(
 					par["FLASH_ISI_MIN"],
 					par["FLASH_ISI_MAX"])
+				previous_was_flash = True
 			else:
 				FLASH_REP = 0
 				FLASH_ISI = np.nan
+				previous_was_flash = False
 		else:
 			FLASH_REP = 0
 			FLASH_ISI = np.nan
+			previous_was_flash = False
 
 		ev["flash_rep"] = FLASH_REP
 		ev["flash_isi"] = FLASH_ISI

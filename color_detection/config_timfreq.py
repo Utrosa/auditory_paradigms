@@ -41,7 +41,7 @@ params = {
     "ISI_STEP" : 1,    # Step size of the ISI range
 
     # Flash events (distractor task) ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    "FLASH_PROB"    : 0.3,  # Probability of the flash
+    "FLASH_PROB"    : 0.15, # Probability of the flash
     "FLASH_REP_MAX" : 4,    # How many times max can the disk flash?
                             # If 4, it means there could be 1, 2, 3 or 4
                             # flashes per tone period (tone duration + 

@@ -2,6 +2,9 @@
 # Time-stamp: <04-11-2026, m.utrosa@bcbl.eu>
 '''
 Requires Expyriment version 1.0.0
+TODO: integrate feedback with max response time
+TODO: log events
+TODO: test timing of events
 '''
 from expyriment import design, control, stimuli, misc, io
 from config_timfreq import params, twitch
@@ -19,14 +22,15 @@ control.set_develop_mode(on = params["DEVELOP_MODE"])
 # 02. PRECOMPUTED PARAMETERS -------------------------------------------------------------
 paramPath = c.outPath / f"ses-{comboID:03d}_exp_parameter_combo.csv"
 
-# Load the dataframe and extract variables
-df        = pd.read_csv(paramPath)
-flash_rep = df["flash_rep"]
-flash_isi = df["flash_isi"]
+# Load the dataframe
+df = pd.read_csv(paramPath)
+df.sort_values(by=["run_idx"], inplace=True)
 no_runs   = len(df["run_idx"].unique())
 
-# Sort the trials are ordered by blocks & trials
-df.sort_values(by=["run_idx"], inplace=True)
+# Load audio files for the current session and sort by run number
+main_task_wavs = list(c.outPath.glob("**/*.wav"))
+main_task_audio = [file_1 for file_1 in main_task_wavs if f"ses-{sesID:02d}" in str(file_1)]
+main_task_audio.sort()
 
 # 03. INITIALIZE THE EXPERIMENT ----------------------------------------------------------
 # Settings to ensure that the window size fits the stimuli computer & projector in the MRI
@@ -106,6 +110,11 @@ correct = stimuli.FixCross(
 # Plotting
 fix_cross.plot(canvas)
 
+# Audio files for main task
+main_audio = {mta.stem.split(f"ses-{sesID:02d}_")[1]: stimuli.Audio(str(mta)) for mta in main_task_audio}
+for s in main_audio.values():
+    s.preload()
+
 # 05. RUN THE EXPERIMENT -----------------------------------------------------------------
 control.start(skip_ready_screen=True)
 
@@ -123,41 +132,88 @@ keyboard.wait(keys=params['DETECTION_SYMBOL'])
 instructions_task.clear_surface()
 blank_canvas.present()
 
-# Check if quit key is pressed
-keyboard.check(keys=[misc.constants.K_y])
-
-# Wait for onset of the functional sequence for the main task
-keyboard.wait(keys=[misc.constants.K_s])
-canvas.present()
-
-# Mark the start of the functional sequence for the main task
-task_start_time = exp.clock.time
-
-# Wait for 4 's' keys from the scanner to synchronize scanner & script onsets.
-keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
-keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
-
-for index, value in flash_rep.items():
+# Loop through the runs
+# Would be equivalent to looping through main_audio because there is one audio per run.
+for run in range(no_runs):
+	
+	# Initialize a dict to track performance on run-level
+	run_performance = {"CORRECT": 0, "INCORRECT": 0}
+	
+	# Extract variables specific to the current run
+	run_idx = run + 1
+	flash_rep = df[df["run_idx"] == run_idx + 1]["flash_rep"]
+	flash_isi = df[df["run_idx"] == run_idx + 1]["flash_isi"]
+	main_audio_values = main_audio.get(f"run_{run_idx:02d}")
 
 	# Check if quit key is pressed
 	keyboard.check(keys=[misc.constants.K_y])
 
-	# Track timing and twich when programmed
-	if value > 0:
-		for _ in range(value):
-			twitch(
-				flash = circle,
-				flash_isi = int(flash_isi[index]),
-				canvas = canvas,
-				cross = fix_cross,
-				clock = clock,
-				keyboard = keyboard
-				)
+	# Wait for onset of the functional sequence
+	keyboard.wait(keys=[misc.constants.K_s])
+	canvas.present()
 
-		# Wait for some time
-		exp.clock.wait(100)
-	else:
-		pass
+	# Mark the start of the functional sequence # TODO: may be obsolete
+	task_start_time = exp.clock.time
+
+	# Wait for 4 's' keys from the scanner to synchronize scanner & script onsets.
+	keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
+	keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
+	
+	# Play the sequence
+	run_start_time = exp.clock.time - task_start_time
+	
+	# While playing the main task audi file, flash the disk
+	main_audio_values.play()
+	while main_audio_values.is_playing: # TODO: When this ends, so should the disk flashing
+
+		for index, value in flash_rep.items():
+
+			# Check if quit key is pressed
+			keyboard.check(keys=[misc.constants.K_y])
+
+			# Twitch
+			if value > 0:
+				for _ in range(value):
+					twitch(
+						flash = circle,
+						flash_isi = int(flash_isi[index]),
+						canvas = canvas,
+						cross = fix_cross,
+						clock = clock,
+						keyboard = keyboard
+						)
+
+				# Wait for some time
+				exp.clock.wait(2500) # TODO: magic parameter -- ensure equal duration to sequence (wav)
+			else:
+				pass
+
+	# If the main task ends before the MRI protocol, instruct the participant to
+	# keep calm and remain still.
+	blank_canvas.present()
+	scanner_text.present()
+
+	# Wait for the MRI QU to end the run by pressing a key unavailable to the participant.
+	keyboard.wait(keys=[misc.constants.K_e])
+
+	# When the MRI QU signals acquistion end, show text with performance updates.
+	mainTask_performance = f'Correct: {run_performance["CORRECT"]}, Wrong: {run_performance["INCORRECT"]}'
+	percent_correct = f'Percentage correct: {round((run_performance["CORRECT"] / no_sound_trials) * 100)} %'
+	mainTask_progress = f'Blocks completed: {block_idx} / {no_blocks}'
+	mainTask_rest = stimuli.TextScreen(
+		params["REST_HEADING"], 
+		mainTask_performance + f"\n\n{percent_correct}" + f"\n\n{mainTask_progress}" + "\n\n" + params["REST_TEXT"],
+		heading_size=params["HEADING_SIZE"],
+		heading_colour=params["WHITE"],
+		text_size=params["TEXT_SIZE"],
+		text_colour=params["WHITE"]
+		)
+	mainTask_rest.present()
+
+	# Wait for the participant to signal they are rested
+	keyboard.wait(keys=params['DETECTION_SYMBOL'])
+	mainTask_rest.clear_surface()
+	blank_canvas.present()
 
 # Say thanks at the end of the counting task
 goodbye_task_message = stimuli.TextScreen(
@@ -176,6 +232,7 @@ goodbye_task_message.clear_surface()
 ## LOCALIZER TASK
 ## ---------------------------------------------------------------------------------------
 task_name = "localizer"
+
 ## ---------------------------------------------------------------------------------------
 # Say thanks & goodbye to the participant
 goodbye_exp_message.present()
