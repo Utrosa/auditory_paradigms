@@ -1,13 +1,14 @@
 #! /usr/bin/env python
-# Time-stamp: <04-11-2026, m.utrosa@bcbl.eu>
+# Time-stamp: <05-11-2026, m.utrosa@bcbl.eu>
 '''
 Requires Expyriment version 1.0.0
 TODO: integrate feedback with max response time
 TODO: log events
 TODO: test timing of events
+TODO: max response period is the minimum separation of two flashes
 '''
 from expyriment import design, control, stimuli, misc, io
-from config_timfreq import params, twitch
+from config_timfreq import params, twitch, feedback_flash
 import config_timfreq as c
 from pathlib import Path
 import pandas as pd
@@ -24,8 +25,7 @@ paramPath = c.outPath / f"ses-{comboID:03d}_exp_parameter_combo.csv"
 
 # Load the dataframe
 df = pd.read_csv(paramPath)
-df.sort_values(by=["run_idx"], inplace=True)
-no_runs   = len(df["run_idx"].unique())
+no_runs = len(df["run_idx"].unique())
 
 # Load audio files for the current session and sort by run number
 main_task_wavs = list(c.outPath.glob("**/*.wav"))
@@ -106,6 +106,8 @@ correct = stimuli.FixCross(
 	line_width = params["FIXATION_CROSS_WIDTH"], 
 	colour = params["CORRECT"]
 	)
+wrong.preload()
+correct.preload()
 
 # Plotting
 fix_cross.plot(canvas)
@@ -136,13 +138,15 @@ blank_canvas.present()
 # Would be equivalent to looping through main_audio because there is one audio per run.
 for run in range(no_runs):
 	
-	# Initialize a dict to track performance on run-level
+	# Initialize variables to track performance on run-level
 	run_performance = {"CORRECT": 0, "INCORRECT": 0}
+	max_response_time = 2000 # TODO: integrate in params & check with flash sep
+	max_feedback_time = 200  # TODO: integrate in params & check with flash sep
 	
 	# Extract variables specific to the current run
 	run_idx = run + 1
-	flash_rep = df[df["run_idx"] == run_idx + 1]["flash_rep"]
-	flash_isi = df[df["run_idx"] == run_idx + 1]["flash_isi"]
+	flash_rep = df[df["run_idx"] == run_idx]["flash_rep"]
+	flash_isi = df[df["run_idx"] == run_idx]["flash_isi"]
 	main_audio_values = main_audio.get(f"run_{run_idx:02d}")
 
 	# Check if quit key is pressed
@@ -162,17 +166,25 @@ for run in range(no_runs):
 	# Play the sequence
 	run_start_time = exp.clock.time - task_start_time
 	
-	# While playing the main task audi file, flash the disk
+	# While playing the main task audiofile, flash the disk
 	main_audio_values.play()
 	while main_audio_values.is_playing: # TODO: When this ends, so should the disk flashing
-
+		print(f"RUN:{run}")
+		print(f"{flash_rep.head()}\n")
 		for index, value in flash_rep.items():
-
-			# Check if quit key is pressed
-			keyboard.check(keys=[misc.constants.K_y])
-
-			# Twitch
+			print(value)
 			if value > 0:
+				print(f"Start loop: {clock.time}")
+				exp.clock.wait(3000)
+				print(f"Start twitch: {clock.time}")
+
+				# Refresh the screen
+				canvas.present()
+
+				# Check if quit key is pressed
+				keyboard.check(keys=[misc.constants.K_y])
+
+				# Twitch
 				for _ in range(value):
 					twitch(
 						flash = circle,
@@ -182,11 +194,49 @@ for run in range(no_runs):
 						clock = clock,
 						keyboard = keyboard
 						)
+				print(f"End twitch: {clock.time}")
+				
+				# Collect responses only if twitched & within max response period
+				response, rt, perfo_code = None, None, None
+				response_time_start = clock.time
 
-				# Wait for some time
-				exp.clock.wait(2500) # TODO: magic parameter -- ensure equal duration to sequence (wav)
-			else:
-				pass
+				# Check for key presses with max response time
+				while clock.time - response_time_start < max_response_time:
+
+					# Non-blocking function to check for pressed keys
+					keys = keyboard.read_out_buffered_keys()
+
+					if keys and keys[0] != 115:  # 115 is "s" from scanner sync box
+						response = keys[-1]      # If multiple, we take the last key
+
+						# Get reaction time
+						rt = (clock.time - response_time_start) / 1000			
+						break
+
+				# Show feedback only if flash was presented
+				print(f"Start feedback function: {clock.time}")
+				perfo_code, run_performance = feedback_flash(
+					value,       # Actual number of flashes
+					response,    # Participant's count
+					correct,     # Fixation cross for correct responses
+					wrong        # Fixation cross for incorrect responses
+					)
+				
+				print(f"Value: {value}; ISI: {flash_isi[index]}")
+				print(f"Response: {response}")
+				print(f"Feedback: {perfo_code}")
+				print(f"End feedback function: {clock.time}")
+
+				# Refresh the screen after max time for seeing feedback
+				# feedback_time_start = clock.time
+				# while clock.time - feedback_time_start > max_feedback_time:
+				# 	keyboard.check(keys=[misc.constants.K_y]) # Check for quit key
+				# 	canvas.clear_surface()
+				# 	canvas.present() # Refresh the screen
+				# print(f"End: {clock.time}\n\n")
+
+				# TODO: Log with correction of the response for MRI buttons (1 is 0 devs, ...)
+				# 		Although this is already maybe done in feedback_flash()
 
 	# If the main task ends before the MRI protocol, instruct the participant to
 	# keep calm and remain still.

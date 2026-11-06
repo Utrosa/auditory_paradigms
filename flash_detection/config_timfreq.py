@@ -4,6 +4,7 @@
 Configuration of variables for creation of main task stimuli and presentation of the task.
 Requires Expyriment version 1.0.0
 '''
+import numpy as np
 from pathlib import Path
 from expyriment import design, control, stimuli, misc, io
 
@@ -28,27 +29,27 @@ params = {
     "PIT_DEVS"    : [4, 8, 13, 19, 27, 36, 48, 63, 80, 100, 125], # Hz
     "TIM_DEV_REP" : 2, # How many times does a deviation repeat per run?
     "PIT_DEV_REP" : 2, # How many times does a deviation repeat per run?
-    "TIME_BETWEEN_DEVS_MIN" : 5500,  # ms - Friston et al. (1999)
-    "TIME_BETWEEN_DEVS_MAX" : 10000, # ms - Friston et al. (1999)
+    "TIME_BETWEEN_DEVS_MIN" : 4500,  # ms - Friston et al. (1999)
+    "TIME_BETWEEN_DEVS_MAX" : 6500,  # ms - Friston et al. (1999)
 
     # Standard tones ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     "FREQ_MIN" : 200,  # Hz
     "FREQ_MAX" : 500,  # Hz
     "MIN_STD_END" : 4, # Min. no. of standards at the end of the sequence (inclusive)
-    "MAX_STD_END" : 6, # Max. no. of standards at the end of the sequence (inclusive)
+    "MAX_STD_END" : 6, # Max. no. of standards at the end of the sequence (insclusive)
     "ISI_MIN"  : 500,  # Min. duration of ISI in ms
     "ISI_MAX"  : 700,  # Max. duration of ISI in ms
     "ISI_STEP" : 1,    # Step size of the ISI range
 
     # Flash events (distractor task) ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     "FLASH_PROB"    : 0.15, # Probability of the flash
-    "FLASH_REP_MAX" : 4,    # How many times max can the disk flash?
+    "FLASH_REP_MAX" : 2,    # How many times max can the disk flash?
                             # If 4, it means there could be 1, 2, 3 or 4
                             # flashes per tone period (tone duration + 
                             # ISI. That's the max because we only
                             # have 4 buttons in the MRI response box.
-    "FLASH_ISI_MIN" : 50,   # Not too small (has to be perceptible)
-    "FLASH_ISI_MAX" : 85,   # Smaller than the FLASH_REP_MAX * ISI_MIN
+    "FLASH_ISI_MIN" : 30,   # Not too small (has to be perceptible)
+    "FLASH_ISI_MAX" : 45,   # Smaller than the FLASH_REP_MAX * ISI_MIN
     "FLASH_RADIUS"  : 45,   # Size of the disk
     "FLASH_POSITION" : (0, 0), # (0,0) is the center of the screen
     
@@ -135,18 +136,63 @@ params = {
 }
 
 # 02. FUNCTIONS -------------------------------------------------------------------------
+def feedback_flash(current_event, response, good, bad):
+    '''
+    Determines the response category for a given response in the flash counting task.
+    Gives feedback by changing the color of the fixation cross.
+    
+    Parameters:
+    - current_event: The number of flashes in the current event.
+    - response: The identity of the key pressed in ASCII code.
+    - good: A class implementing fixation cross for correct responses.
+    - bad: A class implementing fixation cross for wrong responses.
+
+    Returns:
+    - perfo_code: The response category (str).
+    - trial_performance: Dictionary tracking performance across trials (dict).
+    '''
+    perfo_code = None
+    trial_performance = {"CORRECT": 0, "INCORRECT": 0}
+    
+    # ----- Silent trials
+    if np.isnan(current_event):
+        current_event = np.nan_to_num(current_event)
+    
+    # Correct for MRI buttons
+    if response is not None:
+        response = response - 1 # I do this twice?? TODO: CHECK
+        response_str = chr(response)
+    else:
+        response_str = "None"
+
+    # Ensure that you are comparing variables of the same type (str)
+    current_event_str = str((int(current_event)))
+
+    # ----- Correct count -----
+    if current_event_str == response_str:
+        good.present(clear = False, log_event_tag = True)
+        trial_performance["CORRECT"] += 1
+        perfo_code = "CORRECT"
+    
+    # ----- Incorrect count ----- 
+    else:
+        bad.present(clear = False, log_event_tag = True)
+        trial_performance["INCORRECT"] += 1
+        perfo_code = "INCORRECT"
+
+    return perfo_code, trial_performance
+
 def twitch(flash, flash_isi, canvas, cross, clock, keyboard):
     '''
     Presents a flash, which is presented for the specified time and 
     then removed from the canvas screen. The empty screen is presented 
     for the same waiting time before another flash is drawn on the canvas.
     '''
-
-    # Check if quit key is pressed during flashing
+    # Check for quit key
     keyboard.check(keys=[misc.constants.K_y])
     
     # Present the circle (flash)
-    flash.plot(canvas)
+    flash.present()
     canvas.present()
     clock.wait(flash_isi)
 

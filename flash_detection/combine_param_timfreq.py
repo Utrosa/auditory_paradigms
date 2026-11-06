@@ -188,7 +188,7 @@ def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 			k=1
 			)[0]
 
-		# Print update to terminal
+		# Print update to terminal/txt
 		print(
 			f"\nFor RUN {run + 1}: ISI is {ISI} ms and"
 			f" the sequence has a planned total of {total_tones} and "
@@ -204,15 +204,16 @@ def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 		dev_count = 0
 		std_end_count = 0
 		no_std_end = random.randint(par["MIN_STD_END"], par["MAX_STD_END"]) # inclusive boundaries
+
 		for tone in range(total_tones):
-			
+			tone = tone + 1
 			if tone in dev_idxs:
 				
 				event = VALID_TARGETS[dev_count].copy()
 
 				# Add values to deviant event
 				event["dev_abs"] = abs(event["dev"])
-				event["dev_loc"] = dev_idxs[dev_count] + 1 # tone location in the string
+				event["dev_loc"] = dev_idxs[dev_count] - 1 # tone location in the string
 				event["dev_no"]  = dev_count + 1 # consecutive number of the deviant tone
 				event["isi"] = ISI
 				event["base_freq"] = BASE_FREQ
@@ -244,7 +245,7 @@ def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 						RUN_EVENTS.append(event)
 						std_end_count += 1
 
-		# Print update to terminal
+		# Print update to terminal/txt
 		print(
 			f"an actual total of {len(RUN_EVENTS)} tone, resulting in a total "
 			f"run duration of {round((len(RUN_EVENTS) * denominator - ISI) / 60000, 2)} min."

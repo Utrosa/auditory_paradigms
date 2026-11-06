@@ -19,6 +19,10 @@ import sounddevice as sd
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # 02. FUNCTIONS & CLASSES
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# TODO: Correct for HL and SPL
+# This is minor for small differences in standard frequency
+# Would be best that a new standard is not a deviant possibility of a previous standard ...
+
 def set_dbspl(sound, dbspl, ref=20e-6):
     """
     Normalize waveform to target dB SPL.
@@ -96,7 +100,7 @@ class SoundGen:
 
         return sound
 
-    def generate_soundtrack(self, df, max_amplitude, num_harmonics, tone_duration, harmonic_factor, dbspl):
+    def generate_soundtrack(self, df, max_amplitude, num_harmonics, tone_duration, harmonic_factor, dbspl, verbose=False):
         """
         Generate tone sequences with timing deviants for current run.
 
@@ -106,15 +110,17 @@ class SoundGen:
         :param tone_duration: Duration of the tone in milliseconds.
         :param harmonic_factor: Harmonic amplitude decay factor for the tone.
         :param dbspl: Desired dB SPL (loudness) level (cannot change post sound creation).
-        
+        :param verbose: If True, prints updates to the terminal.
+
         :yield: final_sequence: An array of audio samples, representing harmonic a complex tone sequence.
         """
         # Reminder that we're assuming ms as the input unit
-        message = (
-            "\nAssuming input values (ISI, timing deviants, tone duration) are in milliseconds."
-            "\nVerify units in the input parameters and csv files."
-            )
-        warnings.warn(message, UserWarning)
+        if verbose:
+            message = (
+                "\nAssuming input values (ISI, timing deviants, tone duration) are in milliseconds."
+                "\nVerify units in the input parameters and csv files."
+                )
+            warnings.warn(message, UserWarning)
 
         # Initialize tone count, sequence and log
         tone_count = 0
@@ -195,36 +201,7 @@ class SoundGen:
                 # Get the number of samples for a standard isi
                 current_isi = isi_samples
 
-                if tone_count < len(df) - 1:
-                    # Adjust the ISI before or after a timing deviant
-                    is_next_timDev  = df.iloc[tone_count + 1]['dev_cat']
-                    next_timDev_dir = df.iloc[tone_count + 1]['dev_dir']
-                    next_dev_delta  = df.iloc[tone_count + 1]['dev_abs']
-                    
-                    # Check the next event, for ISI before timDev
-                    if pd.isna(is_next_timDev): # Standard ISI
-                        current_isi = isi_samples
-
-                    elif is_next_timDev == 'timing':
-                        
-                        # Get the number of deviant samples
-                        dev = next_dev_delta / 1000
-                        dev_samples  = int(dev * self.sample_rate)
-                        
-                        # Get the number of current ISI samples
-                        if next_timDev_dir == 'early':
-                            current_isi = isi_samples - dev_samples
-                        elif next_timDev_dir == 'late':
-                            current_isi = isi_samples + dev_samples
-                    
-                    elif is_next_timDev == 'pitch':
-                        current_isi = isi_samples
-                    else:
-                        raise ValueError(
-                            f"Undefined next deviant category: {row.dev_cat}. "
-                            "Please check the input file or add silent tone."
-                        )
-
+                # Adjust the ISI before or after a timing deviant
                 # Check current event, for ISI after timDev
                 if row.dev_cat == 'timing':
 
@@ -237,6 +214,37 @@ class SoundGen:
                     elif row.dev_dir == 'late':
                         current_isi = isi_samples - dev_samples
                 
+                else:
+                    # Check the next event, for ISI before timDev
+                    if tone_count < len(df) - 1:
+                        
+                        # Extract variables
+                        is_next_timDev  = df.iloc[tone_count + 1]['dev_cat']
+                        next_timDev_dir = df.iloc[tone_count + 1]['dev_dir']
+                        next_dev_delta  = df.iloc[tone_count + 1]['dev_abs']
+                        
+                        # Adjust the ISI after a timing deviant
+                        if pd.isna(is_next_timDev): # Standard ISI
+                            current_isi = isi_samples
+                        elif is_next_timDev == 'timing':
+                            
+                            # Get the number of deviant samples
+                            dev = next_dev_delta / 1000
+                            dev_samples  = int(dev * self.sample_rate)
+                            
+                            # Get the number of current ISI samples
+                            if next_timDev_dir == 'early':
+                                current_isi = isi_samples - dev_samples
+                            elif next_timDev_dir == 'late':
+                                current_isi = isi_samples + dev_samples
+                        elif is_next_timDev == 'pitch':
+                            current_isi = isi_samples
+                        else:
+                            raise ValueError(
+                                f"Undefined next deviant category: {row.dev_cat}. "
+                                "Please check the input file or add silent tone."
+                            )
+
                 # Append the ISI to the sequence
                 sequence.append(np.zeros(current_isi))
 
@@ -266,9 +274,8 @@ if __name__ == "__main__":
     sesID = int(sesh)
     parPath  = c.outPath / f"ses-{sesID:03d}_exp_parameter_combo.csv"
 
-    # Load the session parameters from csv and order by run indices
+    # Load the session parameters from csv
     df = pd.read_csv(parPath)
-    df.sort_values(by=["run_idx"], inplace=True)
 
     # Initialize the class
     sound_gen = SoundGen(params["SAMPLE_RATE"], params["TAU"])
