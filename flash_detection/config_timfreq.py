@@ -42,7 +42,7 @@ params = {
     "MIN_STD_END" : 4, # Min. no. of standards at the end of the sequence (inclusive)
     "MAX_STD_END" : 6, # Max. no. of standards at the end of the sequence (insclusive)
     "ISI_MIN"  : 500,  # Min. duration of ISI in ms
-    "ISI_MAX"  : 700,  # Max. duration of ISI in ms
+    "ISI_MAX"  : 500,  # Max. duration of ISI in ms
     "ISI_STEP" : 1,    # Step size of the ISI range
 
     # Flash events (distractor task) ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
