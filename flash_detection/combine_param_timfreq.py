@@ -189,7 +189,7 @@ def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 		print(
 			f"\n\n~~~ RUN {run + 1} ~~~ \n* ISI: {ISI} ms"
 			f"\n* Standard frequency: {BASE_FREQ} Hz"
-			f"\n* Planned total number of tones: {total_tones}"
+			f"\n* Planned total no. of tones: {total_tones}"
 		)
 
 		# Randomly shuffle the deviants and copy the deviants that occur per run.
@@ -203,21 +203,24 @@ def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 		std_end_count = 0
 		no_std_end = random.randint(par["MIN_STD_END"], par["MAX_STD_END"]) # inclusive boundaries
 		no_silent_tones = int(np.floor((par["NO_DEV_PERIOD_TIME"] * 1000) / tone_period))
+		print(f"* No. of standard tones added to the end of the sequence: {no_std_end}")
 		
 		# Calcualte where is it possible to insert longer periods of standard tones
-		# The silent periods must not be close to the start or the end of the sequence
+		# The silent periods must NOT be close to the start or the end of the sequence
 		mid_silent_idx = int(np.ceil(len(dev_idxs)/par["NO_DEV_PERIOD_REP"]))
 
 		# Silent periods cannot occur on the deviant tone
 		idx_available  = [sia for sia in list(range(mid_silent_idx, dev_idxs[-mid_silent_idx])) if sia not in dev_idxs]
 		
-		# Silent period should be separted at min. for double their duration
-		selected = [dev_idxs[mid_silent_idx]]
+		# Silent periods should be separted at min. for double their duration
+		print(f"* Starting standard tones no.: {first_dev_idx - 1}")
+		print(f"* Silent tones no.: {no_silent_tones}")
+		selected = [first_dev_idx + no_silent_tones] # The first silence is at the start of the sequence
 		for silent_ix in idx_available:
 			if abs(silent_ix - selected[-1]) >= 2 * no_silent_tones:
 				selected.append(silent_ix)
 
-		# Select the final indexes for the desired repetition of silent periods
+		# Select the final indices for the desired repetition of silent periods
 		silent_idxs = []
 		for silence in range(par["NO_DEV_PERIOD_REP"]):
 			pick = random.choice(selected)
@@ -230,36 +233,47 @@ def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 			f"correspond to {no_silent_tones} standards."
 		)
 
+		# Add silent tones to the start of the sequence
+		for silence in range(no_silent_tones):
+			event = {
+				'dev': np.nan,
+				'dev_cat': None,
+				'dev_dir': None,
+				'dev_abs': np.nan,
+				'dev_no' : np.nan,
+				'isi': ISI,
+				'base_freq': BASE_FREQ,
+				'run_idx'  : run + 1
+			}
+			RUN_EVENTS.append(event)
+
 		# Iterate through all sequence tones
-		for tone in range(total_tones):
-
+		for tone_idx in range(total_tones):
+			
 			# Count of tones starting with 1
-			tone = tone + 1
+			tone = tone_idx + 1
 
-			# Add a "silent" period at the start.
-			if tone == 1:
+			# If we're at "silent" period index, add that period.
+			if tone in silent_idxs:
 				for silence in range(no_silent_tones):
 					event = {
 						'dev': np.nan,
 						'dev_cat': None,
 						'dev_dir': None,
 						'dev_abs': np.nan,
-						'dev_loc': np.nan,
 						'dev_no' : np.nan,
 						'isi': ISI,
 						'base_freq': BASE_FREQ,
 						'run_idx'  : run + 1
 					}
 					RUN_EVENTS.append(event)
-
+			
 			# Add deviant if at the deviant's index.
-			elif tone in dev_idxs:
-				
-				event = VALID_TARGETS[dev_count].copy()
+			if tone in dev_idxs:
 
 				# Add values to deviant event
+				event = VALID_TARGETS[dev_count].copy()
 				event["dev_abs"] = abs(event["dev"])
-				event["dev_loc"] = dev_idxs[dev_count] - 1 # tone location in the string
 				event["dev_no"]  = dev_count + 1 # consecutive number of the deviant tone
 				event["isi"] = ISI
 				event["base_freq"] = BASE_FREQ
@@ -271,22 +285,6 @@ def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 				# Update the deviations count
 				dev_count += 1
 
-			# If we're at "silent" period index, add that period.
-			elif tone in silent_idxs:
-				for silence in range(no_silent_tones):
-					event = {
-						'dev': np.nan,
-						'dev_cat': None,
-						'dev_dir': None,
-						'dev_abs': np.nan,
-						'dev_loc': np.nan,
-						'dev_no' : np.nan,
-						'isi': ISI,
-						'base_freq': BASE_FREQ,
-						'run_idx'  : run + 1
-					}
-					RUN_EVENTS.append(event)
-
 			# If not at deviant's or silent's index, add a single standard tone
 			else:
 				event = {
@@ -294,19 +292,19 @@ def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 						'dev_cat': None,
 						'dev_dir': None,
 						'dev_abs': np.nan,
-						'dev_loc': np.nan,
 						'dev_no' : np.nan,
 						'isi': ISI,
 						'base_freq': BASE_FREQ,
 						'run_idx'  : run + 1
 					}
 				
-				# Add standard tones only until you add all deviants
+				# Add a standard tone only until if not all deviants added
 				if dev_count < len(dev_idxs):
 					RUN_EVENTS.append(event)
 				
 				# Decide randomly (from range) how many standard tones to end with
 				else:
+					# Truncate the sequence to a limited number of standard tones
 					if std_end_count < no_std_end:
 						RUN_EVENTS.append(event)
 						std_end_count += 1
@@ -318,7 +316,6 @@ def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 				'dev_cat': None,
 				'dev_dir': None,
 				'dev_abs': np.nan,
-				'dev_loc': np.nan,
 				'dev_no' : np.nan,
 				'isi': ISI,
 				'base_freq': BASE_FREQ,
@@ -342,6 +339,9 @@ def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 
 	# 03. GENERATE FLASH VARIABLES --------------------------------------------
 	# Iterate through each dictionary, representing an event in an exp. session.
+	# Adapt the below code by taking into consideration the time. The amount of flashes
+	# must be executable during the run_duration. Calculate approx duration of each flash
+	# FLASH_REP * ISI + FLASH_EXECUTE * FLASH_REP + response/feedback_time
 	previous_was_flash = False
 	for ix, ev in enumerate(SESSION_EVENTS):
 
