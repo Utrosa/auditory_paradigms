@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-# Time-stamp: <05-11-2026 m.utrosa@bcbl.eu>
+# Time-stamp: <09-11-2026 m.utrosa@bcbl.eu>
 '''
 References:
 Friston, K. J., Zarahn, E. O. R. N. A., Josephs, O., Henson, R. N., & 
@@ -9,7 +9,7 @@ Dale, A. M. (1999). Stochastic designs in event-related fMRI. Neuroimage,
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # 01. IMPORT
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-import sys
+import sys # for session-specific text file summary 
 import random
 import numpy as np
 import pandas as pd
@@ -85,27 +85,27 @@ def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 	SESSION_EVENTS = []
 	for run in range(par["NO_MRI_RUNS"]):
 		
-		# Find all possible ISI lengths and number of tones given the FIXED run duration
+		# Find all possible ISI lengths and number of tones given the FIXED run duration.
 		solutions = []
 		for ISI in range(par["ISI_MIN"], par["ISI_MAX"] + 1):
-		    numerator = sequence_length + ISI
-		    denominator = par["TONE_DURATION"] + ISI
+			numerator = sequence_length + ISI
+			denominator = par["TONE_DURATION"] + ISI
 
-		    if numerator % denominator != 0:
-		        continue
+			if numerator % denominator != 0:
+				continue
 
-		    total_tones = numerator // denominator
+			total_tones = numerator // denominator
 
-		    if total_tones < no_dev_tones:
-		        continue
+			if total_tones < no_dev_tones:
+				continue
 
-		    no_std_tones = total_tones - no_dev_tones
-		    solutions.append({"ISI" : ISI, "N_total" : total_tones, "N_std" : no_std_tones})
+			no_std_tones = total_tones - no_dev_tones
+			solutions.append({"ISI" : ISI, "N_total" : total_tones, "N_std" : no_std_tones})
 		if run < 1:
 			print("The possible ISI values and number of tones given input parameters are:"
 				f"\n{solutions}.\n")
 
-		# Determine the ISI, GAPS between deviant events, and the INDICES of deviants
+		# Determine the ISI, GAPS between deviant events, and the INDICES of deviants.
 		ISI_found = False
 		TIME_BETWEEN_DEVS = False
 		dev_idxs = False
@@ -122,26 +122,23 @@ def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 				k=1
 				)[0])
 			numerator = sequence_length + ISI
-			denominator = par["TONE_DURATION"] + ISI
-			if numerator % denominator != 0:
+			tone_period = par["TONE_DURATION"] + ISI
+			if numerator % tone_period != 0:
 				continue
 
-			total_tones = numerator // denominator
+			total_tones = numerator // tone_period
 			ISI_found = True
 
-			# Find GAPS
+			# Find GAPS between deviants
 			# A gap must span an exact number of tone periods so deviants land
-			# on tone boundaries. The period is one tone plus the ISI.
-			tone_period = par["TONE_DURATION"] + ISI
-
-			# Keep only gap values in the allowed range that are exact multiples
-			# of the tone period.
+			# on tone boundaries. Keep only gap values in the allowed range that
+			# are exact multiples of the tone period (tone duration + ISI).
 			valid_gaps = [
 				gap for gap in range(par["TIME_BETWEEN_DEVS_MIN"], par["TIME_BETWEEN_DEVS_MAX"] + 1)
 				if gap % tone_period == 0
 				]
 
-			# If no gap value in the range is a clean multiple, this ISI can't
+			# If no gap value in the range is a clean multiple, current ISI can't
 			# satisfy the constraint, so resample the ISI.
 			if not valid_gaps:
 				ISI_found = False
@@ -194,20 +191,62 @@ def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 			f" the sequence has a planned total of {total_tones} and "
 		)
 
-		# Randomly shuffle the deviants and copy the deviants that occur per run
-		# This ensures that all timing and pitch deviants occur in one run
+		# Randomly shuffle the deviants and copy the deviants that occur per run.
+		# This ensures that all timing and pitch deviants occur in one run.
 		VALID_TARGETS = VALID_TARGET_COMBOS.copy()
 		random.shuffle(VALID_TARGETS)
 
-		# Create the RUN with one dictionary per tone
+		# Create the RUN with one dictionary per tone and add silent periods.
 		RUN_EVENTS = []
 		dev_count = 0
 		std_end_count = 0
 		no_std_end = random.randint(par["MIN_STD_END"], par["MAX_STD_END"]) # inclusive boundaries
+		no_silent_tones = int(np.floor((par["NO_DEV_PERIOD_TIME"] * 1000) / tone_period))
+		
+		# Calcualte where is it possible to insert longer periods of standard tones
+		# The silent periods must not be close to the start or the end of the sequence
+		mid_silent_idx = dev_idxs[int(np.ceil(len(dev_idxs)/par["NO_DEV_PERIOD_REP"]))]
 
+		# Silent periods cannot occur on the deviant tone
+		idx_available  = [sia for sia in list(range(mid_silent_idx, dev_idxs[-mid_silent_idx])) if sia not in dev_idxs]
+		
+		# Silent period should be separted at min. for double their duration
+		selected = [mid_silent_idx]
+		for silent_ix in idx_available:
+			if abs(silent_ix - selected[-1]) >= 2 * no_silent_tones:
+				selected.append(silent_ix)
+
+		# Select the final indexes for the desired repetition of silent periods
+		silent_idxs = []
+		for silence in range(par["NO_DEV_PERIOD_REP"]):
+			pick = random.choice(selected)
+			silent_idxs.append(pick)
+			selected.remove(pick)
+
+		# Iterate through all sequence tones
 		for tone in range(total_tones):
+
+			# Count of tones starting with 1
 			tone = tone + 1
-			if tone in dev_idxs:
+
+			# Add a "silent" period at the start.
+			if tone == 1:
+				for silence in range(no_silent_tones):
+					event = {
+						'dev': np.nan,
+						'dev_cat': None,
+						'dev_dir': None,
+						'dev_abs': np.nan,
+						'dev_loc': np.nan,
+						'dev_no' : np.nan,
+						'isi': ISI,
+						'base_freq': BASE_FREQ,
+						'run_idx'  : run + 1
+					}
+					RUN_EVENTS.append(event)
+
+			# Add deviant if at the deviant's index.
+			elif tone in dev_idxs:
 				
 				event = VALID_TARGETS[dev_count].copy()
 
@@ -225,6 +264,23 @@ def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 				# Update the deviations count
 				dev_count += 1
 
+			# If we're at "silent" period index, add that period.
+			elif tone in silent_idxs:
+				for silence in range(no_silent_tones):
+					event = {
+						'dev': np.nan,
+						'dev_cat': None,
+						'dev_dir': None,
+						'dev_abs': np.nan,
+						'dev_loc': np.nan,
+						'dev_no' : np.nan,
+						'isi': ISI,
+						'base_freq': BASE_FREQ,
+						'run_idx'  : run + 1
+					}
+					RUN_EVENTS.append(event)
+
+			# If not at deviant's or silent's index, add a single standard tone
 			else:
 				event = {
 						'dev': np.nan,
@@ -237,25 +293,43 @@ def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 						'base_freq': BASE_FREQ,
 						'run_idx'  : run + 1
 					}
+				
 				# Add standard tones only until you add all deviants
 				if dev_count < len(dev_idxs):
 					RUN_EVENTS.append(event)
+				
+				# Decide randomly (from range) how many standard tones to end with
 				else:
 					if std_end_count < no_std_end:
 						RUN_EVENTS.append(event)
 						std_end_count += 1
 
+		# Once we are at the end, add a "silent" period. 
+		for silence in range(no_silent_tones):
+			event = {
+				'dev': np.nan,
+				'dev_cat': None,
+				'dev_dir': None,
+				'dev_abs': np.nan,
+				'dev_loc': np.nan,
+				'dev_no' : np.nan,
+				'isi': ISI,
+				'base_freq': BASE_FREQ,
+				'run_idx'  : run + 1
+			}
+			RUN_EVENTS.append(event)
+
 		# Print update to terminal/txt
 		print(
 			f"an actual total of {len(RUN_EVENTS)} tone, resulting in a total "
-			f"run duration of {round((len(RUN_EVENTS) * denominator - ISI) / 60000, 2)} min."
+			f"run duration of {round((len(RUN_EVENTS) * tone_period - ISI) / 60000, 2)} min."
 		)
 
 		# Append the run to the events of this experimental session
 		SESSION_EVENTS = SESSION_EVENTS + RUN_EVENTS
 
 	# 03. GENERATE FLASH VARIABLES --------------------------------------------
-	# Iterate through each dictionary, representing an event in an exp. session
+	# Iterate through each dictionary, representing an event in an exp. session.
 	previous_was_flash = False
 	for ix, ev in enumerate(SESSION_EVENTS):
 

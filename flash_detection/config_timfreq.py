@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-# Time-stamp: <05-11-2026, m.utrosa@bcbl.eu>
+# Time-stamp: <09-11-2026, m.utrosa@bcbl.eu>
 '''
 Configuration of variables for creation of main task stimuli and presentation of the task.
 Requires Expyriment version 1.0.0
@@ -31,6 +31,10 @@ params = {
     "PIT_DEV_REP" : 2, # How many times does a deviation repeat per run?
     "TIME_BETWEEN_DEVS_MIN" : 4500,  # ms - Friston et al. (1999)
     "TIME_BETWEEN_DEVS_MAX" : 6500,  # ms - Friston et al. (1999)
+    "NO_DEV_PERIOD_TIME" : 20, # sec - duration of the "silent" period
+                               # Corresponds to a longer period of standard tones
+    "NO_DEV_PERIOD_REP"  : 4,  # How many "silent" periods occur in one run?
+                               # Excluding the "silent" periods at the start & end.
 
     # Standard tones ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     "FREQ_MIN" : 200,  # Hz
