@@ -103,7 +103,7 @@ def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 			solutions.append({"ISI" : ISI, "N_total" : total_tones, "N_std" : no_std_tones})
 		if run < 1:
 			print("The possible ISI values and number of tones given input parameters are:"
-				f"\n{solutions}.\n")
+				f"\n{solutions}.")
 
 		# Determine the ISI, GAPS between deviant events, and the INDICES of deviants.
 		ISI_found = False
@@ -187,8 +187,9 @@ def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 
 		# Print update to terminal/txt
 		print(
-			f"\nFor RUN {run + 1}: ISI is {ISI} ms and"
-			f" the sequence has a planned total of {total_tones} and "
+			f"\n\n~~~ RUN {run + 1} ~~~ \n* ISI: {ISI} ms"
+			f"\n* Standard frequency: {BASE_FREQ} Hz"
+			f"\n* Planned total number of tones: {total_tones}"
 		)
 
 		# Randomly shuffle the deviants and copy the deviants that occur per run.
@@ -205,13 +206,13 @@ def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 		
 		# Calcualte where is it possible to insert longer periods of standard tones
 		# The silent periods must not be close to the start or the end of the sequence
-		mid_silent_idx = dev_idxs[int(np.ceil(len(dev_idxs)/par["NO_DEV_PERIOD_REP"]))]
+		mid_silent_idx = int(np.ceil(len(dev_idxs)/par["NO_DEV_PERIOD_REP"]))
 
 		# Silent periods cannot occur on the deviant tone
 		idx_available  = [sia for sia in list(range(mid_silent_idx, dev_idxs[-mid_silent_idx])) if sia not in dev_idxs]
 		
 		# Silent period should be separted at min. for double their duration
-		selected = [mid_silent_idx]
+		selected = [dev_idxs[mid_silent_idx]]
 		for silent_ix in idx_available:
 			if abs(silent_ix - selected[-1]) >= 2 * no_silent_tones:
 				selected.append(silent_ix)
@@ -222,6 +223,12 @@ def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 			pick = random.choice(selected)
 			silent_idxs.append(pick)
 			selected.remove(pick)
+		print(
+			"\nLonger periods of standard tones, equivalent to the silent events, "
+			f"are added at positions: {sorted(silent_idxs)}. "
+			f"These periods are {par['NO_DEV_PERIOD_TIME']} seconds long and "
+			f"correspond to {no_silent_tones} standards."
+		)
 
 		# Iterate through all sequence tones
 		for tone in range(total_tones):
@@ -320,9 +327,14 @@ def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 			RUN_EVENTS.append(event)
 
 		# Print update to terminal/txt
+		run_duration = round((len(RUN_EVENTS) * tone_period - ISI) / 60000, 2)
+		silent_duration = round((no_silent_tones * tone_period - ISI) / 1000)
+		silence_perc = round(((silent_duration/60)/run_duration) * 100, 2)
 		print(
-			f"an actual total of {len(RUN_EVENTS)} tone, resulting in a total "
-			f"run duration of {round((len(RUN_EVENTS) * tone_period - ISI) / 60000, 2)} min."
+			f"\nThe sequence has an actual total of {len(RUN_EVENTS)} tones, resulting in a total "
+			f"run duration of {run_duration} min. "
+			f"About {silent_duration} sec of it are longer periods of standard tones, "
+			f"corresponding to {silence_perc} % of the total run duration."
 		)
 
 		# Append the run to the events of this experimental session
@@ -405,7 +417,7 @@ if __name__ == "__main__":
 	simID = int(sim)
 
 	# Simulate
-	for session in range(1, simID):
+	for session in range(1, simID + 1):
 		with open(
 			c.outPath / f"ses-{session:003d}_exp_parameter_combo.txt",
 			"w"
