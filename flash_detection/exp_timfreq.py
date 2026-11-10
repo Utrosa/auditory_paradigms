@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-# Time-stamp: <05-11-2026, m.utrosa@bcbl.eu>
+# Time-stamp: <10-11-2026, m.utrosa@bcbl.eu>
 '''
 Requires Expyriment version 1.0.0
 TODO: integrate feedback with max response time
@@ -149,8 +149,13 @@ blank_canvas.present()
 # Loop through the runs. Equivalent to looping through "main_audio" 
 # because there is one audio file per run.
 for run in range(no_runs):
-	
-	# Initialize variables to track performance on run-level
+
+	# Initialize unique timestamps, output file for flash counting task, and 
+	# a dictionary to track performance on this task.
+    nw = datetime.now()
+    ts = int(nw.timestamp())
+	flash_log = io.OutputFile(suffix = sesh, directory = f'combo-{comboID:003d}')
+	flash_log.write("onset\tduration\ttrial_type\tresponse_time\n")
 	run_performance = {"CORRECT": 0, "INCORRECT": 0}
 
 	# Extract variables specific to the current run
@@ -245,7 +250,11 @@ for run in range(no_runs):
 					print(f"\nValue: {row['n_reps']}; ISI: {row['isi']}")
 					print(f"Response: {response}")
 					print(f"Feedback: {perfo_code}")
-				
+					
+					# Log with correction of the response for MRI buttons (1 is 0 devs, ...)
+					response = response - 1
+					flash_log.write(f"{key_press_time}\t100\t{chr(response)}\t{rt}\n")
+
 					# Refresh the screen after max time for seeing feedback
 					exp.clock.wait(params["MAX_FEEDBACK_TIME"])
 					canvas.present() # Refresh the screen
@@ -261,10 +270,13 @@ for run in range(no_runs):
 				)
 				exp.clock.wait(params["MAX_FEEDBACK_TIME"])
 				canvas.present() # Refresh the screen
-				# print(f"End flash loop: {clock.time}")
+	
+	# Save the run-level log
+	flash_log.rename(f"sub-{exp.subject:02d}_ses-{sesID:02d}_task-flash_ts-{ts}_events.tsv")
+	flash_log.save()
 
-			# TODO: Log with correction of the response for MRI buttons (1 is 0 devs, ...)
-			# response = response - 1
+	# Clearing any key presses
+	keyboard.clear()
 
 	# If the main task ends before the MRI protocol, instruct the participant to
 	# keep calm and remain still.

@@ -1,5 +1,6 @@
 #! /usr/bin/env python
-# Time-stamp: <2026-04-27 m.utrosa@bcbl.eu>
+# Original code: Ekim Celikay, e.celikay@bcbl.eu
+# Adapted: <2026-04-27 m.utrosa@bcbl.eu>
 '''
 create_soundtrack_soundgen() module generates sounds as defined in csv
 optionally, you can save generated sound arrays as .wav files to disk
@@ -316,7 +317,7 @@ class SoundGen:
                         f"than specified ({trial.freq_dev_no}) "
                         f"for trial {trial.trial_no} in block {trial.block_no}.")
 
-            # s the tone sequence, ITI (an array of zeros),
+            # Log the tone sequence, ITI (an array of zeros),
             # the number of frequency deviants, and the sequence log.
             end_time = current_time / self.sample_rate
             yield final_sequence, trial.iti, trial.freq_dev_no, sequence_log, end_time

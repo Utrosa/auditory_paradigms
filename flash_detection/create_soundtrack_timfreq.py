@@ -1,14 +1,18 @@
 #! /usr/bin/env python
-# Time-stamp: <05-11-2026, m.utrosa@bcbl.eu>
+# Original code: Ekim Celikay, e.celikay@bcbl.eu
+# Adapted: <10-11-2026, m.utrosa@bcbl.eu>
 '''
-The create_soundtrack_soundgen() module generates sounds as defined in csv
-Optionally, you can save generated sound arrays as .wav files.
+The create_soundtrack_soundgen() module generates sounds as defined in an 
+imported .csv file. The generate soundtracks (sound arrays) are saved as 
+.wav files.
+
 TODOs: add and verify correctnes of logging tones (end & current time)
        replace set_dbspl() with Jasmin's code for sound normalization
 '''
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # 01. IMPORT
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+import csv
 import warnings
 import numpy as np
 import pandas as pd
@@ -100,11 +104,12 @@ class SoundGen:
 
         return sound
 
-    def generate_soundtrack(self, df, max_amplitude, num_harmonics, tone_duration, harmonic_factor, dbspl, verbose=False):
+    def generate_soundtrack(self, df, current_time, max_amplitude, num_harmonics, tone_duration, harmonic_factor, dbspl, verbose=False):
         """
         Generate tone sequences with timing deviants for current run.
 
         :param df: A dataframe with tone sequence parameters with ms as the time unit.
+        :param current_time: Current time in the experiment in milliseconds, relative to start of the task.
         :param max_amplitude: Maximum amplitude to avoid clipping.
         :param num_harmonics: Number of harmonic tones.
         :param tone_duration: Duration of the tone in milliseconds.
@@ -113,7 +118,12 @@ class SoundGen:
         :param verbose: If True, prints updates to the terminal.
 
         :yield: final_sequence: An array of audio samples, representing harmonic a complex tone sequence.
+        :yield: sequence_log: A text file with onset, duration, and tone timing information.
         """
+        # Convert to seconds & sound array duration
+        current_time = current_time / 1000
+        current_time = current_time * self.sample_rate
+
         # Reminder that we're assuming ms as the input unit
         if verbose:
             message = (
@@ -127,7 +137,7 @@ class SoundGen:
         sequence = []
         sequence_log = str()
 
-        # Get tone samples
+        # Get tone samples (only once)
         tone_duration = tone_duration / 1000
         tone_samples = int(tone_duration * self.sample_rate)
 
@@ -136,11 +146,7 @@ class SoundGen:
         for row in df.itertuples():
 
             # --------------- Get EVENT samples ---------------------
-            # Convert milliseconds to seconds and get no. samples
-            isi = row.isi / 1000
-            isi_samples  = int(isi * self.sample_rate)
-
-            # ----------------- Adding TONES ------------------------
+            # ----------------- Adding TONES
             # Generate a standard tone
             if pd.isna(row.dev_cat):
                 sound = self.sound_maker(
@@ -190,11 +196,36 @@ class SoundGen:
 
             # Apply ramp to the start and the end
             ramped_sound = self.sine_ramp(sound)
-            
+
+            # Identify tone type
+            if not pd.isna(row.dev): # DEVIANTS
+                if row.dev > 0: # Positive deviants
+                    if row.dev_cat == "timing":
+                        tone_type = f"fStd-{int(row.base_freq)}Hz_delta-p{int(row.dev_abs)}ms_type-fStdtDev"
+                    elif row.dev_cat == "pitch":
+                        tone_type = f"fStd-{int(row.base_freq)}Hz_fDev-p{int(row.dev_abs)}Hz_type-fDevtStd"
+                elif row.dev < 0: # Negative deviants
+                    if row.dev_cat == "timing":
+                        tone_type = f"fStd-{int(row.base_freq)}Hz_delta-n{int(row.dev_abs)}ms_type-fStdtDev"
+                    elif row.dev_cat == "pitch":
+                        tone_type = f"fStd-{int(row.base_freq)}Hz_fDev-n{int(row.dev_abs)}Hz_type-fDevtStd"
+            else: # STANDARDS
+                tone_type = f"fStd-{int(row.base_freq)}Hz_type-fStdtStd"
+
+            # Log tones
+            onset_sec = current_time / self.sample_rate
+            log_format = f"{onset_sec}\t{tone_duration}\t{tone_type}\n"
+            sequence_log = sequence_log + log_format
+
             # Add the sound to the sequence
             sequence.append(ramped_sound)
+            current_time += tone_samples
 
-            # ----------------- Adding ISI --------------------------
+            # ----------------- Adding ISI
+            # Convert milliseconds to seconds and get no. isi samples
+            isi = row.isi / 1000
+            isi_samples  = int(isi * self.sample_rate)
+            
             # Add one less ISI. Sequence ends with a tone.
             if tone_count < len(df):
                 
@@ -248,8 +279,9 @@ class SoundGen:
                 # Append the ISI to the sequence
                 sequence.append(np.zeros(current_isi))
 
-                # Update tone count
+                # Update tone count and time
                 tone_count += 1
+                current_time += current_isi
 
         # -------------- Join ALL segments ----------------------
         final_sequence = np.concatenate(sequence)
@@ -279,34 +311,53 @@ if __name__ == "__main__":
 
     # Initialize the class
     sound_gen = SoundGen(params["SAMPLE_RATE"], params["TAU"])
-
+    
     # Play the soundtrack over the runs
     no_runs = len(df["run_idx"].unique())
     for run in range(no_runs):
-
+ 
         # Correct for zero-indexing
         run_idx = run + 1
 
         # Select only the part of the dataframe relevant for the current trial
         df_run = df[df["run_idx"] == run_idx]
+        
+        # Initialize log for sequences
+        # TODO: add subject ID
+        # TODO: either add a timestamp or change IMPORT of logfiles ...
+        out_dir = Path(f"ses-{sesID:003d}")
+        out_dir.mkdir(parents=True, exist_ok=True)
+        log_path = out_dir / f"ses-{sesID:02d}_task-timfreqDev_run-{run_idx:02d}_events.tsv"
 
-        # Generate the soundtrack of the experimental session
-        for soundtrack, trial_log in sound_gen.generate_soundtrack(
-           df_run,
-           params["MAX_AMPLITUDE"],
-           params["NUM_HARMONICS"], 
-           params["TONE_DURATION"], 
-           params["HARMONIC_FACTOR"],
-           params["TONE_LOUDNESS"]
-           ):
-            # sd.play(soundtrack, samplerate=params["SAMPLE_RATE"])
-            # sd.wait()
+        # Write the log file using standard file I/O
+        with open(log_path, mode="w", newline="") as tsv_file:
+            
+            # Write header
+            tsv_file.write("onset\tduration\ttrial_type\n")
 
-            # Optionally, save the run soundtrack as a .wav file
-            if c.write_wav:
-                filename = f"exp_ses-{sesID:02d}_run_{run_idx:02d}.wav"
-                sf.write(
-                    c.outPath / filename,
-                    soundtrack,
-                    params["SAMPLE_RATE"]
-                )
+            # Generate the soundtrack of the experimental session
+            for soundtrack, sequence_log in sound_gen.generate_soundtrack(
+               df_run,
+               0, # current time
+               params["MAX_AMPLITUDE"],
+               params["NUM_HARMONICS"], 
+               params["TONE_DURATION"], 
+               params["HARMONIC_FACTOR"],
+               params["TONE_LOUDNESS"]
+            ):
+                
+                # Optionally play the soundtrack
+                # sd.play(soundtrack, samplerate=params["SAMPLE_RATE"])
+                # sd.wait()
+                
+                # Write relevant info to log for current run
+                tsv_file.write(sequence_log)
+
+                # Optionally, save the run soundtrack as a .wav file
+                if c.write_wav:
+                    filename = f"exp_ses-{sesID:02d}_run_{run_idx:02d}.wav"
+                    sf.write(
+                        c.outPath / filename,
+                        soundtrack,
+                        params["SAMPLE_RATE"]
+                    )
