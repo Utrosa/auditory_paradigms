@@ -26,7 +26,7 @@ params = {
 
     # Timing and pitch deviant tones ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     "TIM_DEVS"    : [4, 8, 13, 19, 27, 36, 48, 63, 80, 100, 125], # msec
-    "PIT_DEVS"    : [4, 8, 13, 19, 27, 36, 48, 63, 80, 100, 125], # Hz
+    "PIT_DEVS"    : [1/178, 1/90, 1/55, 1/38, 1/27, 1/20, 1/15, 1/11, 1/9, 1/7, 1/4],
     "TIM_DEV_REP" : 2, # How many times does a deviation repeat per run?
     "PIT_DEV_REP" : 2, # How many times does a deviation repeat per run?
     "TIME_BETWEEN_DEVS_MIN" : 4500,  # ms - Friston et al. (1999)
