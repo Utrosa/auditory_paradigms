@@ -339,10 +339,7 @@ def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 
 	# 03. GENERATE FLASH VARIABLES --------------------------------------------
 	# Iterate through each dictionary, representing an event in an exp. session.
-	previous_was_flash = False
-	# TODO: calculate this distance correctly empirically
-	flash_distance_min = par["FLASH_ISI_MAX"] * par["FLASH_REP_MAX"] + par["MAX_RESPONSE_TIME"] + par["FLASH_WAIT_TIME"]
-	
+	previous_was_flash = False	
 	for ix, ev in enumerate(SESSION_EVENTS):
 
 		# Ensure: no flash on deviant events or the events following the deviant.
@@ -393,22 +390,44 @@ def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 
 	# 04. BUILD FLASH-ONLY DATAFRAME ------------------------------------------
 	FLASH_EVENTS = []
+	flash_distance = (
+		par["FLASH_ISI_MAX"] * (par["FLASH_REP_MAX"] - 1)
+		+ par["FLASH_DURATION"] * par["FLASH_REP_MAX"] 
+		+ par["MAX_RESPONSE_TIME"] + par["MAX_FEEDBACK_TIME"]
+	)
+	last_onset = -flash_distance
 	for tone_ix, se in enumerate(SESSION_EVENTS):
 		if not pd.isna(se["flash_rep"]) or not pd.isna(se["flash_isi"]):
+			
+			# Calculate tone period (can differ per run, depending on ISI)
 			tone_period = par["TONE_DURATION"] + se["isi"]
-			onset_time  = (tone_ix + 1) * tone_period
-			flash_duration = (
-				se["flash_rep"] * (se["flash_isi"] - 1)
+
+			# Onset of the flash must occur within the ISI of the tone
+			# at least "TONE_DURATION" time after the tone has ended for 
+			# perceptual separability between audio & visual stimuli.
+			onset_time  = tone_ix * tone_period + 2 * par["TONE_DURATION"]
+			
+			# If minimum distance between consecutive flash events is not
+			# met, move to the next iteration.
+			if onset_time - last_onset < flash_distance:
+				continue
+			
+			# Append a flash event if minimum distance ensured
+			flashing_duration = (
+				(se["flash_rep"] - 1) * se["flash_isi"]
 				+ se["flash_rep"] * par["FLASH_DURATION"]
 			)
 			FLASH_EVENTS.append({
 				"onset"    : onset_time,
-				"duration" : flash_duration,
+				"duration" : flashing_duration,
 				"n_reps"   : se["flash_rep"],
 				"isi"      : se["flash_isi"],
 				"run_idx"  : se["run_idx"]
 			})
-	print(FLASH_EVENTS)
+
+			# Update variable
+			last_onset = onset_time
+
 	# 05. SAVE TRIALS ---------------------------------------------------------
 	# Create a dataframe from the list of dictionaries
 	TONES_DF = pd.DataFrame(SESSION_EVENTS)

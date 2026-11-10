@@ -140,14 +140,14 @@ task_name = "counting"
 # Present instructions for the counting task and wait a minimal time needed to read them.
 instructions_task.present()
 exp.clock.wait(params["READING_TIME"])
+instructions_task.clear_surface()
 keyboard.wait(keys=params['DETECTION_SYMBOL'])
 
 # Clear instructions and show a blank screen.
-instructions_task.clear_surface()
 blank_canvas.present()
 
-# Loop through the runs
-# Would be equivalent to looping through main_audio because there is one audio per run.
+# Loop through the runs. Equivalent to looping through "main_audio" 
+# because there is one audio file per run.
 for run in range(no_runs):
 	
 	# Initialize variables to track performance on run-level
@@ -155,98 +155,116 @@ for run in range(no_runs):
 
 	# Extract variables specific to the current run
 	run_idx = run + 1
-	flash_rep = df_flash[df_flash["run_idx"] == run_idx]["flash_rep"]
-	flash_isi = df_flash[df_flash["run_idx"] == run_idx]["flash_isi"]
+	flash_run = df_flash[df_flash["run_idx"] == run_idx]
 	main_audio_values = main_audio.get(f"run_{run_idx:02d}")
 
 	# Check if quit key is pressed
-	keyboard.check(keys=[misc.constants.K_y])
+	keyboard.check(keys=[misc.constants.K_y])	
 
 	# Wait for onset of the functional sequence
 	keyboard.wait(keys=[misc.constants.K_s])
 	canvas.present()
 
-	# Mark the start of the functional sequence # TODO: may be obsolete
+	# Mark the start of the functional sequence
 	task_start_time = exp.clock.time
 
 	# Wait for 4 's' keys from the scanner to synchronize scanner & script onsets.
 	keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
 	keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
 	
-	# Play the sequence
+	# Play the sequence and mark the starting time of the run/audio.
 	run_start_time = exp.clock.time - task_start_time
-	
-	# While playing the main task audiofile, flash the disk
 	main_audio_values.play()
-	while main_audio_values.is_playing: # TODO: When this ends, so should the disk flashing
-		print(f"RUN:{run}")
-		print(f"{flash_rep.head()}\n")
-		for index, value in flash_rep.items():
-			print(value)
-			if value > 0:
-				print(f"Start loop: {clock.time}")
-				exp.clock.wait(par["FLASH_WAIT_TIME"])
-				print(f"Start twitch: {clock.time}")
+	print(f"---- RUN:{run_idx} ----")
 
-				# Refresh the screen
-				canvas.present()
+	# While playing the main task audiofile, flash the disk.
+	while main_audio_values.is_playing:
 
-				# Check if quit key is pressed
+		# Check if quit key is pressed
+		keyboard.check(keys=[misc.constants.K_y])
+
+		# Iterate through the flashes programmed for the current run.
+		for _, row in flash_run.iterrows():
+			flash_start_time = clock.time
+			print(f"Start flash loop: {flash_start_time}")
+
+			# Get time for the start of the flash and wait until that time
+			flash_start = flash_start_time + row["onset"]
+			while flash_start - clock.time > 0:
 				keyboard.check(keys=[misc.constants.K_y])
 
-				# Twitch
-				for _ in range(value):
-					twitch(
-						flash = circle,
-						flash_isi = int(flash_isi[index]),
-						canvas = canvas,
-						cross = fix_cross,
-						clock = clock,
-						keyboard = keyboard
-						)
-				print(f"End twitch: {clock.time}")
-				
-				# Collect responses only if twitched & within max response period
-				response, rt, perfo_code = None, None, None
-				response_time_start = clock.time
+			print(f"Start twitch: {clock.time}")
+			print(f"Programmed start twitch: {flash_start}")
 
-				# Check for key presses with max response time
-				while clock.time - response_time_start < par["MAX_RESPONSE_TIME"]:
-
-					# Non-blocking function to check for pressed keys
-					keys = keyboard.read_out_buffered_keys()
-
-					if keys and keys[0] != 115:  # 115 is "s" from scanner sync box
-						response = keys[-1]      # If multiple, we take the last key
-
-						# Get reaction time
-						rt = (clock.time - response_time_start) / 1000			
-						break
-
-				# Show feedback only if flash was presented
-				print(f"Start feedback function: {clock.time}")
-				perfo_code, run_performance = feedback_flash(
-					value,       # Actual number of flashes
-					response,    # Participant's count
-					correct,     # Fixation cross for correct responses
-					wrong        # Fixation cross for incorrect responses
+			# Twitch
+			for _ in range(row["n_reps"]):
+				twitch(
+					stimulus = circle,
+					duration = params["FLASH_DURATION"],
+					isi      = int(row["isi"]),
+					screen   = canvas,
+					clock    = clock,
+					keyboard = keyboard
 					)
+			print(f"End twitch: {clock.time}")
+
+			# Collect responses only if twitched & within max response period
+			response, rt, perfo_code = None, None, None
+			response_time_start = clock.time
+			print(f"\nStart response time: {response_time_start}")
+
+			# Check for key presses with max response time
+			while clock.time - response_time_start < params["MAX_RESPONSE_TIME"]:
+
+				# Non-blocking function to check for pressed keys
+				keys = keyboard.read_out_buffered_keys()
+
+				# ------ Key-press trials ------ 
+				if keys and keys[0] != 115:  # 115 is "s" from scanner sync box
+					response = keys[-1]      # If multiple, we take the last key
+
+					# Get time of key press
+					key_press_time = clock.time / 1000
+					
+					# Get reaction time
+					rt = (clock.time - response_time_start) / 1000
 				
-				print(f"Value: {value}; ISI: {flash_isi[index]}")
-				print(f"Response: {response}")
-				print(f"Feedback: {perfo_code}")
-				print(f"End feedback function: {clock.time}")
+					print(f"End response time: {clock.time}")
+					print(f"Reaction time: {rt}")
 
-				# Refresh the screen after max time for seeing feedback
-				# feedback_time_start = clock.time
-				# while clock.time - feedback_time_start > max_feedback_time:
-				# 	keyboard.check(keys=[misc.constants.K_y]) # Check for quit key
-				# 	canvas.clear_surface()
-				# 	canvas.present() # Refresh the screen
-				# print(f"End: {clock.time}\n\n")
+					# Show feedback
+					print(f"\nStart feedback function: {clock.time}")
+					perfo_code, run_performance = feedback_flash(
+						row["n_reps"], # Actual number of flashes
+						response,      # Participant's count
+						correct,       # Fixation cross for correct responses
+						wrong          # Fixation cross for incorrect responses
+					)
+					print(f"End feedback function: {clock.time}")
+					
+					print(f"\nValue: {row['n_reps']}; ISI: {row['isi']}")
+					print(f"Response: {response}")
+					print(f"Feedback: {perfo_code}")
+				
+					# Refresh the screen after max time for seeing feedback
+					exp.clock.wait(params["MAX_FEEDBACK_TIME"])
+					canvas.present() # Refresh the screen
+					print(f"End flash loop: {clock.time}")
+				
+			# ------ No-key trials ------   
+			if not response:
+				perfo_code, run_performance = feedback_flash(
+					row["n_reps"], # Actual number of flashes
+					response,      # Participant's count
+					correct,       # Fixation cross for correct responses
+					wrong          # Fixation cross for incorrect responses
+				)
+				exp.clock.wait(params["MAX_FEEDBACK_TIME"])
+				canvas.present() # Refresh the screen
+				# print(f"End flash loop: {clock.time}")
 
-				# TODO: Log with correction of the response for MRI buttons (1 is 0 devs, ...)
-				# 		Although this is already maybe done in feedback_flash()
+			# TODO: Log with correction of the response for MRI buttons (1 is 0 devs, ...)
+			# response = response - 1
 
 	# If the main task ends before the MRI protocol, instruct the participant to
 	# keep calm and remain still.
@@ -272,7 +290,6 @@ for run in range(no_runs):
 
 	# Wait for the participant to signal they are rested
 	keyboard.wait(keys=params['DETECTION_SYMBOL'])
-	mainTask_rest.clear_surface()
 	blank_canvas.present()
 
 # Say thanks at the end of the counting task

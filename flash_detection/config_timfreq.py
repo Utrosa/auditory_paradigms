@@ -46,25 +46,24 @@ params = {
     "ISI_STEP" : 1,    # Step size of the ISI range
 
     # Flash events (distractor task) ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    "FLASH_PROB"    : 0.15, # Probability of the flash
-    "FLASH_REP_MAX" : 2,    # How many times max can the disk flash?
-                            # If 4, it means there could be 1, 2, 3 or 4
-                            # flashes per tone period (tone duration + 
-                            # ISI. That's the max because we only
-                            # have 4 buttons in the MRI response box.
-    "FLASH_ISI_MIN" : 30,   # Not too small (has to be perceptible)
-    "FLASH_ISI_MAX" : 45,   # Smaller than the FLASH_REP_MAX * ISI_MIN
-    "FLASH_RADIUS"  : 45,   # Size of the disk
     "FLASH_POSITION" : (0, 0), # (0,0) is the center of the screen
-    "FLASH_WAIT_TIME" : 3000, # TODO: check what this does actually ahaha
-    "FLASH_DURATION" : 200, # TODO: measure!
-    
+    "FLASH_RADIUS"   : 45,     # Size of the disk
+    "FLASH_PROB"     : 0.15,   # Probability of the flash
+    "FLASH_REP_MAX"  : 3,      # How many times max can the disk flash?
+                               # If 4, it means there could be 1, 2, 3 or 4
+                               # flashes per tone period (tone duration + 
+                               # ISI. That's the max because we only
+                               # have 4 buttons in the MRI response box.
+    "FLASH_ISI_MIN"  : 55,     # Longer than FLASH_DURATION
+    "FLASH_ISI_MAX"  : 65,     # Small enough so that flashes fit within tone ISI
+    "FLASH_DURATION" : 50,     # How long is the stimulus that flashes presented for?
+
     ## Responses
     # In the MRI, the rainbow response pad is 1234, while the white one is abcd.
     "DETECTION_SYMBOL"   : [misc.constants.K_1, misc.constants.K_2, misc.constants.K_3, misc.constants.K_4],
     "DETECTION_ASCII"    : ['49', '50', '51', '52'],
     "MAX_RESPONSE_TIME" : 2000, # ms; max time for participant's response
-    "MAX_FEEDBACK_TIME" : 500,  # ms; TODO: possibly can remove
+    "MAX_FEEDBACK_TIME" : 1000, # ms; duration of color change for trial-by-trial response feedback
     
     # General audio settings ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     ## Stimuli for main task
@@ -139,8 +138,8 @@ params = {
 
     "END_HEADING"      : "The End of the Experiment", 
     "END_TEXT"         : "Thank you so much for your participation!\n\n",
-    "READING_TIME": 3000 # ms; ensures that the participant reads the instructions
-                         # at the start & end of the experiment
+    "READING_TIME": 30 # ms; ensures that the participant reads the instructions
+                       # at the start & end of the experiment
 }
 
 # 02. FUNCTIONS -------------------------------------------------------------------------
@@ -162,13 +161,8 @@ def feedback_flash(current_event, response, good, bad):
     perfo_code = None
     trial_performance = {"CORRECT": 0, "INCORRECT": 0}
     
-    # ----- Silent trials
-    if np.isnan(current_event):
-        current_event = np.nan_to_num(current_event)
-    
     # Correct for MRI buttons
     if response is not None:
-        response = response - 1 # I do this twice?? TODO: CHECK
         response_str = chr(response)
     else:
         response_str = "None"
@@ -178,19 +172,19 @@ def feedback_flash(current_event, response, good, bad):
 
     # ----- Correct count -----
     if current_event_str == response_str:
-        good.present(clear = False, log_event_tag = True)
+        good.present()
         trial_performance["CORRECT"] += 1
         perfo_code = "CORRECT"
     
     # ----- Incorrect count ----- 
     else:
-        bad.present(clear = False, log_event_tag = True)
+        bad.present()
         trial_performance["INCORRECT"] += 1
         perfo_code = "INCORRECT"
 
     return perfo_code, trial_performance
 
-def twitch(flash, flash_isi, canvas, cross, clock, keyboard):
+def twitch(stimulus, duration, isi, screen, clock, keyboard):
     '''
     Presents a flash, which is presented for the specified time and 
     then removed from the canvas screen. The empty screen is presented 
@@ -199,17 +193,12 @@ def twitch(flash, flash_isi, canvas, cross, clock, keyboard):
     # Check for quit key
     keyboard.check(keys=[misc.constants.K_y])
     
-    # Present the circle (flash)
-    flash.present()
-    canvas.present()
-    clock.wait(flash_isi)
+    # Present the stimulus for the specified duration
+    stimulus.present()
+    clock.wait(duration)
 
-    # Erase it from screen
-    canvas.clear_surface()
+    # Present the screen (without the stimulus)
+    screen.present()
 
-    # Present the fixation cross
-    cross.plot(canvas)
-    canvas.present()
-
-    # Wait until presenting the circle again
-    clock.wait(flash_isi)
+    # Wait until presenting the stimulus again
+    clock.wait(isi)
