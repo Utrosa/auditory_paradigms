@@ -339,10 +339,10 @@ def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 
 	# 03. GENERATE FLASH VARIABLES --------------------------------------------
 	# Iterate through each dictionary, representing an event in an exp. session.
-	# Adapt the below code by taking into consideration the time. The amount of flashes
-	# must be executable during the run_duration. Calculate approx duration of each flash
-	# FLASH_REP * ISI + FLASH_EXECUTE * FLASH_REP + response/feedback_time
 	previous_was_flash = False
+	# TODO: calculate this distance correctly empirically
+	flash_distance_min = par["FLASH_ISI_MAX"] * par["FLASH_REP_MAX"] + par["MAX_RESPONSE_TIME"] + par["FLASH_WAIT_TIME"]
+	
 	for ix, ev in enumerate(SESSION_EVENTS):
 
 		# Ensure: no flash on deviant events or the events following the deviant.
@@ -380,28 +380,56 @@ def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 					par["FLASH_ISI_MAX"])
 				previous_was_flash = True
 			else:
-				FLASH_REP = 0
+				FLASH_REP = np.nan
 				FLASH_ISI = np.nan
 				previous_was_flash = False
 		else:
-			FLASH_REP = 0
+			FLASH_REP = np.nan
 			FLASH_ISI = np.nan
 			previous_was_flash = False
 
 		ev["flash_rep"] = FLASH_REP
 		ev["flash_isi"] = FLASH_ISI
 
-	# 04. SAVE TRIALS ---------------------------------------------------------
+	# 04. BUILD FLASH-ONLY DATAFRAME ------------------------------------------
+	FLASH_EVENTS = []
+	for tone_ix, se in enumerate(SESSION_EVENTS):
+		if not pd.isna(se["flash_rep"]) or not pd.isna(se["flash_isi"]):
+			tone_period = par["TONE_DURATION"] + se["isi"]
+			onset_time  = (tone_ix + 1) * tone_period
+			flash_duration = (
+				se["flash_rep"] * (se["flash_isi"] - 1)
+				+ se["flash_rep"] * par["FLASH_DURATION"]
+			)
+			FLASH_EVENTS.append({
+				"onset"    : onset_time,
+				"duration" : flash_duration,
+				"n_reps"   : se["flash_rep"],
+				"isi"      : se["flash_isi"],
+				"run_idx"  : se["run_idx"]
+			})
+	print(FLASH_EVENTS)
+	# 05. SAVE TRIALS ---------------------------------------------------------
 	# Create a dataframe from the list of dictionaries
-	df = pd.DataFrame(SESSION_EVENTS)
-
+	TONES_DF = pd.DataFrame(SESSION_EVENTS)
+	FLASH_DF = pd.DataFrame(FLASH_EVENTS)
+	
 	# Save the dataframe as a .csv file
 	if save_csv:
-		filename =  f"ses-{sesID:003d}_exp_parameter_combo.csv"
 		out_path.mkdir(exist_ok=True, parents=True)
-		out_dir  = out_path / filename
-		df.to_csv(out_dir, sep=",", index=False)
-		print(f"\nSaved {filename} to {out_path}.")
+
+		# TONES DF
+		tones_fnm =  f"ses-{sesID:003d}_exp_parameter_combo.csv"
+		out_dir   = out_path / tones_fnm
+		TONES_DF.to_csv(out_dir, sep=",", index=False)
+
+		# FLASH DF
+		flash_fnm =  f"ses-{sesID:003d}_exp_distractor_combo.csv"
+		out_dir   = out_path / flash_fnm
+		FLASH_DF.to_csv(out_dir, sep=",", index=False)
+
+		# Print update to terminal/txt
+		print(f"\nSaved {tones_fnm} and {flash_fnm} to {out_path}.")
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # 03. SIMULATION OF EXPERIMENTAL SESSIONS

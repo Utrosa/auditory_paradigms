@@ -56,12 +56,16 @@ params = {
     "FLASH_ISI_MAX" : 45,   # Smaller than the FLASH_REP_MAX * ISI_MIN
     "FLASH_RADIUS"  : 45,   # Size of the disk
     "FLASH_POSITION" : (0, 0), # (0,0) is the center of the screen
+    "FLASH_WAIT_TIME" : 3000, # TODO: check what this does actually ahaha
+    "FLASH_DURATION" : 200, # TODO: measure!
     
     ## Responses
     # In the MRI, the rainbow response pad is 1234, while the white one is abcd.
     "DETECTION_SYMBOL"   : [misc.constants.K_1, misc.constants.K_2, misc.constants.K_3, misc.constants.K_4],
     "DETECTION_ASCII"    : ['49', '50', '51', '52'],
-
+    "MAX_RESPONSE_TIME" : 2000, # ms; max time for participant's response
+    "MAX_FEEDBACK_TIME" : 500,  # ms; TODO: possibly can remove
+    
     # General audio settings ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     ## Stimuli for main task
     "TONE_LOUDNESS"   : 85,     # dB SPL
@@ -135,8 +139,8 @@ params = {
 
     "END_HEADING"      : "The End of the Experiment", 
     "END_TEXT"         : "Thank you so much for your participation!\n\n",
-    "WAIT_TIME": 3000  # ms; ensures that the participant reads the instructions
-                       # at the start & end of the experiment
+    "READING_TIME": 3000 # ms; ensures that the participant reads the instructions
+                         # at the start & end of the experiment
 }
 
 # 02. FUNCTIONS -------------------------------------------------------------------------

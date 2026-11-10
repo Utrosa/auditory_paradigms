@@ -21,11 +21,13 @@ comboID, sesID = int(idx), int(sesh)
 control.set_develop_mode(on = params["DEVELOP_MODE"])
 
 # 02. PRECOMPUTED PARAMETERS -------------------------------------------------------------
-paramPath = c.outPath / f"ses-{comboID:03d}_exp_parameter_combo.csv"
+tonesPath = c.outPath / f"ses-{comboID:03d}_exp_parameter_combo.csv"
+flashPath = c.outPath / f"ses-{comboID:03d}_exp_distractor_combo.csv"
 
 # Load the dataframe
-df = pd.read_csv(paramPath)
-no_runs = len(df["run_idx"].unique())
+df_tones = pd.read_csv(tonesPath)
+df_flash = pd.read_csv(flashPath)
+no_runs  = len(df_tones["run_idx"].unique())
 
 # Load audio files for the current session and sort by run number
 main_task_wavs = list(c.outPath.glob("**/*.wav"))
@@ -44,12 +46,11 @@ exp = design.Experiment(name = "color_devLoc")
 control.initialize(exp)
 
 # 04. CREATE & PRELOAD THE STIMULI -------------------------------------------------------
+# Handles
 keyboard = io.Keyboard()
 clock    = misc.Clock()
 
-canvas = stimuli.Canvas(size = params["CANVAS_SIZE"], colour = params["BLACK"])
-blank_canvas = stimuli.Canvas(size = params["CANVAS_SIZE"], colour = params["BLACK"])
-
+# Text
 scanner_text = stimuli.TextScreen(
     params["MRI_HEADING"],
     params["MRI_TEXT"],
@@ -82,7 +83,18 @@ goodbye_exp_message = stimuli.TextScreen(
     text_size=params["TEXT_SIZE"],
     text_colour=params["WHITE"]
     )
+scanner_text.preload(); goodbye_exp_message.preload()
+instructions_loc.preload(); instructions_task.preload()
 
+# Screen and Visuals
+canvas = stimuli.Canvas(
+	size = params["CANVAS_SIZE"],
+	colour = params["BLACK"]
+	)
+blank_canvas = stimuli.Canvas(
+	size = params["CANVAS_SIZE"],
+	colour = params["BLACK"]
+	)
 circle = stimuli.Circle(
 	radius = params["FLASH_RADIUS"],
 	colour = params["WHITE"],
@@ -127,7 +139,7 @@ task_name = "counting"
 
 # Present instructions for the counting task and wait a minimal time needed to read them.
 instructions_task.present()
-exp.clock.wait(params["WAIT_TIME"])
+exp.clock.wait(params["READING_TIME"])
 keyboard.wait(keys=params['DETECTION_SYMBOL'])
 
 # Clear instructions and show a blank screen.
@@ -140,13 +152,11 @@ for run in range(no_runs):
 	
 	# Initialize variables to track performance on run-level
 	run_performance = {"CORRECT": 0, "INCORRECT": 0}
-	max_response_time = 2000 # TODO: integrate in params & check with flash sep
-	max_feedback_time = 200  # TODO: integrate in params & check with flash sep
-	
+
 	# Extract variables specific to the current run
 	run_idx = run + 1
-	flash_rep = df[df["run_idx"] == run_idx]["flash_rep"]
-	flash_isi = df[df["run_idx"] == run_idx]["flash_isi"]
+	flash_rep = df_flash[df_flash["run_idx"] == run_idx]["flash_rep"]
+	flash_isi = df_flash[df_flash["run_idx"] == run_idx]["flash_isi"]
 	main_audio_values = main_audio.get(f"run_{run_idx:02d}")
 
 	# Check if quit key is pressed
@@ -175,7 +185,7 @@ for run in range(no_runs):
 			print(value)
 			if value > 0:
 				print(f"Start loop: {clock.time}")
-				exp.clock.wait(3000)
+				exp.clock.wait(par["FLASH_WAIT_TIME"])
 				print(f"Start twitch: {clock.time}")
 
 				# Refresh the screen
@@ -201,7 +211,7 @@ for run in range(no_runs):
 				response_time_start = clock.time
 
 				# Check for key presses with max response time
-				while clock.time - response_time_start < max_response_time:
+				while clock.time - response_time_start < par["MAX_RESPONSE_TIME"]:
 
 					# Non-blocking function to check for pressed keys
 					keys = keyboard.read_out_buffered_keys()
@@ -275,7 +285,7 @@ goodbye_task_message = stimuli.TextScreen(
     text_colour=params["WHITE"]
 )
 goodbye_task_message.present()
-exp.clock.wait(params["WAIT_TIME"])
+exp.clock.wait(params["READING_TIME"])
 goodbye_task_message.clear_surface() 
 
 ## ---------------------------------------------------------------------------------------
@@ -286,6 +296,6 @@ task_name = "localizer"
 ## ---------------------------------------------------------------------------------------
 # Say thanks & goodbye to the participant
 goodbye_exp_message.present()
-exp.clock.wait(params["WAIT_TIME"])
+exp.clock.wait(params["READING_TIME"])
 goodbye_exp_message.clear_surface()
 control.end()
