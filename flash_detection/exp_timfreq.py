@@ -13,6 +13,7 @@ import config_timfreq as c
 from pathlib import Path
 import pandas as pd
 import ast
+from datetime import datetime
 
 # 01. USER-DEFINED PARAMETERS ------------------------------------------------------------
 idx  = input("Enter the index of exp_parameter_combo csv:")
@@ -152,8 +153,8 @@ for run in range(no_runs):
 
 	# Initialize unique timestamps, output file for flash counting task, and 
 	# a dictionary to track performance on this task.
-    nw = datetime.now()
-    ts = int(nw.timestamp())
+	nw = datetime.now()
+	ts = int(nw.timestamp())
 	flash_log = io.OutputFile(suffix = sesh, directory = f'combo-{comboID:003d}')
 	flash_log.write("onset\tduration\ttrial_type\tresponse_time\n")
 	run_performance = {"CORRECT": 0, "INCORRECT": 0}

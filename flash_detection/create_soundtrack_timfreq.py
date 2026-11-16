@@ -172,7 +172,8 @@ class SoundGen:
 
                 # Generate a frequency deviant tone
                 elif row.dev_cat == 'pitch':
-                    dev_freq = row.base_freq * (2**int(row.dev))
+                    # Round deviant Hz value to 0.1
+                    dev_freq = round(row.base_freq * (2**row.dev), 1)
                     sound = self.sound_maker(
                             dev_freq,
                             max_amplitude,
@@ -203,12 +204,12 @@ class SoundGen:
                     if row.dev_cat == "timing":
                         tone_type = f"fStd-{int(row.base_freq)}Hz_delta-p{int(row.dev_abs)}ms_type-fStdtDev"
                     elif row.dev_cat == "pitch":
-                        tone_type = f"fStd-{int(row.base_freq)}Hz_fDev-p{int(row.dev_abs)}_type-fDevtStd"
+                        tone_type = f"fStd-{int(row.base_freq)}Hz_fDev-p{dev_freq}Hz_type-fDevtStd"
                 elif row.dev < 0: # Negative deviants
                     if row.dev_cat == "timing":
                         tone_type = f"fStd-{int(row.base_freq)}Hz_delta-n{int(row.dev_abs)}ms_type-fStdtDev"
                     elif row.dev_cat == "pitch":
-                        tone_type = f"fStd-{int(row.base_freq)}Hz_fDev-n{int(row.dev_abs)}_type-fDevtStd"
+                        tone_type = f"fStd-{int(row.base_freq)}Hz_fDev-n{dev_freq}Hz_type-fDevtStd"
             else: # STANDARDS
                 tone_type = f"fStd-{int(row.base_freq)}Hz_type-fStdtStd"
 

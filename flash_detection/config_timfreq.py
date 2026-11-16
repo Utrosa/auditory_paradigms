@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-# Time-stamp: <10-11-2026, m.utrosa@bcbl.eu>
+# Time-stamp: <16-11-2026, m.utrosa@bcbl.eu>
 '''
 Configuration of variables for creation of main task stimuli and presentation of the task.
 Requires Expyriment version 1.0.0
@@ -26,7 +26,8 @@ params = {
 
     # Timing and pitch deviant tones ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     "TIM_DEVS"    : [4, 8, 13, 19, 27, 36, 48, 63, 80, 100, 125], # msec
-    "PIT_DEVS"    : [1/178, 1/90, 1/55, 1/38, 1/27, 1/20, 1/15, 1/11, 1/9, 1/7, 1/4],
+    "PIT_DEVS"    : [1/600, 1/200, 1/97, 1/55, 1/27, 1/16, 1/11, 1/7, 1/5, 1/4, 1/3],
+                    # If base 440, freqDev: 440.5, 441.5, 443, 445.6, 451,4, 459.5, 468.6, 485.8, 505.4, 523.3, 554.4
     "TIM_DEV_REP" : 2, # How many times does a deviation repeat per run?
     "PIT_DEV_REP" : 2, # How many times does a deviation repeat per run?
     "TIME_BETWEEN_DEVS_MIN" : 4500,  # ms - Friston et al. (1999)
@@ -48,8 +49,8 @@ params = {
     # Flash events (distractor task) ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     "FLASH_POSITION" : (0, 0), # (0,0) is the center of the screen
     "FLASH_RADIUS"   : 45,     # Size of the disk
-    "FLASH_PROB"     : 0.15,   # Probability of the flash
-    "FLASH_REP_MAX"  : 3,      # How many times max can the disk flash?
+    "FLASH_PROB"     : 0.05,   # Probability of the flash
+    "FLASH_REP_MAX"  : 2,      # How many times max can the disk flash?
                                # If 4, it means there could be 1, 2, 3 or 4
                                # flashes per tone period (tone duration + 
                                # ISI. That's the max because we only
