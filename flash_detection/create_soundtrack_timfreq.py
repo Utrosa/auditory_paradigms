@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 # Original code: Ekim Celikay, e.celikay@bcbl.eu
-# Adapted: <10-11-2026, m.utrosa@bcbl.eu>
+# Adapted: <17-11-2026, m.utrosa@bcbl.eu>
 '''
 The create_soundtrack_soundgen() module generates sounds as defined in an 
 imported .csv file. The generate soundtracks (sound arrays) are saved as 
@@ -118,9 +118,7 @@ class SoundGen:
         :yield: final_sequence: An array of audio samples, representing harmonic a complex tone sequence.
         :yield: sequence_log: A text file with onset, duration, and tone timing information.
         """
-        # Convert to seconds & sound array duration
-        current_time = current_time / 1000
-        current_time = current_time * self.sample_rate
+        current_samples = (current_time / 1000) * self.sample_rate # Convert to samples
 
         # Reminder that we're assuming ms as the input unit
         if verbose:
@@ -155,7 +153,7 @@ class SoundGen:
                     harmonic_factor,
                     dbspl
                 )
-            elif not pd.isna(row.dev_cat): # Deviant tones have a category
+            else: # Deviant tones have a category
 
                 # Generate a frequency standard tone
                 if row.dev_cat == 'timing': 
@@ -188,11 +186,6 @@ class SoundGen:
                         f"Unrecognized deviant category: {row.dev_cat}. "
                         "Please check the input file."
                     ) 
-            else:
-                raise ValueError(
-                    f"Undefined deviant category: {row.dev_cat}. "
-                    "Please check the input file or add silent tone."
-                )
 
             # Apply ramp to the start and the end
             ramped_sound = self.sine_ramp(sound)
@@ -209,17 +202,21 @@ class SoundGen:
                         tone_type = f"fStd-{int(row.base_freq)}Hz_delta-n{int(row.dev_abs)}ms_type-fStdtDev"
                     elif row.dev_cat == "pitch":
                         tone_type = f"fStd-{int(row.base_freq)}Hz_fDev-n{dev_freq}Hz_type-fDevtStd"
+                else:
+                    raise ValueError("Deviant not larger or smaller than 0.")
+
             else: # STANDARDS
                 tone_type = f"fStd-{int(row.base_freq)}Hz_type-fStdtStd"
 
             # Log tones
-            onset_sec = current_time / self.sample_rate
+            onset_sec = current_samples / self.sample_rate
             log_format = f"{onset_sec}\t{tone_duration}\t{tone_type}\n"
             sequence_log = sequence_log + log_format
 
             # Add the sound to the sequence
             sequence.append(ramped_sound)
-            current_time += tone_samples
+            current_samples += tone_samples
+            tone_count += 1
 
             # ----------------- Adding ISI
             # Convert milliseconds to seconds and get no. isi samples
@@ -227,7 +224,7 @@ class SoundGen:
             isi_samples  = int(isi * self.sample_rate)
             
             # Add one less ISI. Sequence ends with a tone.
-            if tone_count < len(df):
+            if tone_count < len(df) - 1:
                 
                 # Get the number of samples for a standard isi
                 current_isi = isi_samples
@@ -246,42 +243,38 @@ class SoundGen:
                         current_isi = isi_samples - dev_samples
                 
                 else:
-                    # Check the next event, for ISI before timDev
-                    if tone_count < len(df) - 1:
+                    # Check the next variables
+                    is_next_timDev  = df.iloc[tone_count + 1]['dev_cat']
+                    next_timDev_dir = df.iloc[tone_count + 1]['dev_dir']
+                    next_dev_delta  = df.iloc[tone_count + 1]['dev_abs']
+                    
+                    # Adjust the ISI after a timing deviant
+                    if pd.isna(is_next_timDev): # Standard ISI
+                        current_isi = isi_samples
+                    elif is_next_timDev == 'timing': # Deviant ISI
                         
-                        # Extract variables
-                        is_next_timDev  = df.iloc[tone_count + 1]['dev_cat']
-                        next_timDev_dir = df.iloc[tone_count + 1]['dev_dir']
-                        next_dev_delta  = df.iloc[tone_count + 1]['dev_abs']
+                        # Get the number of deviant samples
+                        dev = next_dev_delta / 1000
+                        dev_samples  = int(dev * self.sample_rate)
                         
-                        # Adjust the ISI after a timing deviant
-                        if pd.isna(is_next_timDev): # Standard ISI
-                            current_isi = isi_samples
-                        elif is_next_timDev == 'timing':
-                            
-                            # Get the number of deviant samples
-                            dev = next_dev_delta / 1000
-                            dev_samples  = int(dev * self.sample_rate)
-                            
-                            # Get the number of current ISI samples
-                            if next_timDev_dir == 'early':
-                                current_isi = isi_samples - dev_samples
-                            elif next_timDev_dir == 'late':
-                                current_isi = isi_samples + dev_samples
-                        elif is_next_timDev == 'pitch':
-                            current_isi = isi_samples
-                        else:
-                            raise ValueError(
-                                f"Undefined next deviant category: {row.dev_cat}. "
-                                "Please check the input file or add silent tone."
-                            )
+                        # Get the number of current ISI samples
+                        if next_timDev_dir == 'early':
+                            current_isi = isi_samples - dev_samples
+                        elif next_timDev_dir == 'late':
+                            current_isi = isi_samples + dev_samples
+                    elif is_next_timDev == 'pitch':
+                        current_isi = isi_samples
+                    else:
+                        raise ValueError(
+                            f"Undefined next deviant category: {is_next_timDev}. "
+                            "Please check the input file or add silent tone."
+                        )
 
                 # Append the ISI to the sequence
                 sequence.append(np.zeros(current_isi))
 
-                # Update tone count and time
-                tone_count += 1
-                current_time += current_isi
+                # Update time
+                current_samples += current_isi
 
         # -------------- Join ALL segments ----------------------
         final_sequence = np.concatenate(sequence)
