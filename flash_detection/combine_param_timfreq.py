@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-# Time-stamp: <16-11-2026 m.utrosa@bcbl.eu>
+# Time-stamp: <17-11-2026 m.utrosa@bcbl.eu>
 '''
 References:
 Friston, K. J., Zarahn, E. O. R. N. A., Josephs, O., Henson, R. N., & 
@@ -171,9 +171,11 @@ def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 			# The first 3 tones should never be deviant
 			if TIME_BETWEEN_DEVS[0] > 3 * tone_period:
 				first_dev_idx = int(TIME_BETWEEN_DEVS[0] / tone_period)
-				TIME_BETWEEN_DEVS.pop(0)
 			else: # If the first time is smaller than the time for 3 std tones & isi
 				first_dev_idx = random.choices(range(4, 6), k=1)[0]
+
+			# Remove the first element as it was decided above
+			TIME_BETWEEN_DEVS.pop(0)
 
 			# Build cumulative indices from the first deviant + sampled gaps
 			dev_idxs = [first_dev_idx]
@@ -200,7 +202,7 @@ def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 			if BASE_FREQ not in UNALLOWED_BASE_FREQ:
 				
 				# Current standard should not be deviant of the previous run
-				if max_pitDev:
+				if max_pitDev: # or min_pitDev (equivalent)
 					if BASE_FREQ > max_pitDev or BASE_FREQ < min_pitDev:
 						fStd_found = True
 				else:
@@ -396,9 +398,9 @@ def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 			run_boundaries[run] = [ix, ix]  # [start, end]
 		else:
 			run_boundaries[run][1] = ix
-
+	
 	# Pre-identify eligible flash indices per run
-	flash_indices_available = {}
+	flash_idxs_available = {}
 	for ix, ev in enumerate(SESSION_EVENTS):
 		run = ev["run_idx"]
 		run_start, run_end = run_boundaries[run]
@@ -410,60 +412,65 @@ def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 		else:
 			is_standard = False
 
-		## Check previous event
-		if ix > 0:
-			if not pd.isna(SESSION_EVENTS[ix - 1]["dev"]):
-				prev_was_deviant = True
-			else:
-				prev_was_deviant = False
-		else:
-			prev_was_deviant = False
+		## Check previous three events
+		prev_was_deviant = False
+		if ix - 1 >= run_start and not pd.isna(SESSION_EVENTS[ix - 1]["dev"]):
+			prev_was_deviant = True
+		elif ix - 2 >= run_start and not pd.isna(SESSION_EVENTS[ix - 2]["dev"]):
+			prev_was_deviant = True
+		elif ix - 3 >= run_start and not pd.isna(SESSION_EVENTS[ix - 3]["dev"]):
+			prev_was_deviant = True
+
+		## Check next three events
+		next_is_deviant = False
+		if ix + 1 <= run_end and not pd.isna(SESSION_EVENTS[ix + 1]["dev"]):
+			next_is_deviant = True
+		elif ix + 2 <= run_end and not pd.isna(SESSION_EVENTS[ix + 2]["dev"]):
+			next_is_deviant = True
+		elif ix + 3 <= run_end and not pd.isna(SESSION_EVENTS[ix + 3]["dev"]):
+			next_is_deviant = True
 
 		# Determine if flash is allowed at current iteration
 		in_first_three = ix - run_start <= 2
 		in_last_one = ix == run_end
 
 		# Find available flash indices
-		if is_standard and not prev_was_deviant and not in_first_three and not in_last_one:
-			flash_indices_available.setdefault(run, []).append(ix)
-
+		if is_standard and not prev_was_deviant and not next_is_deviant and not in_first_three and not in_last_one:
+			flash_idxs_available.setdefault(run, []).append(ix)
+	
 	# Initialize all events to no flash
 	for ev in SESSION_EVENTS:
 		ev["flash_rep"] = np.nan
 		ev["flash_isi"] = np.nan
 	
 	# Pick randomly the indices for flash events
+	print(f"\n\n~~~~ FLASH VARIABLES ~~~~: {run}")
 	for run in sorted(flash_num.keys()):
+
+		# Get indices available for flashes for current run
 		flash_run = flash_num[run]
-		eligible = flash_indices_available.get(run, [])
+		flash_idxs_avail_run  = flash_idxs_available.get(run, [])
+		if flash_run > len(flash_idxs_avail_run):
+			print(f"WARNING: requested {flash_run} flashes but only {len(flash_idxs_avail_run)} positions eligible.")
 
-		# Cap by available eligible positions
-		flash_run = min(flash_run, len(eligible))
+		# Print to terminal/txt
+		print(f"RUN: {run}")
+		print(f"Needed flash idxs: {flash_run}")
+		print(f"Eligible flash idxs: {len(flash_idxs_avail_run)}")
 
-		if flash_run == 0:
-			continue
+		# Compute tone period, assuming constant ISI per RUN.
+		# ISI is read from SESSION_EVENTS for the current run.
+		tone_period = par["TONE_DURATION"] + SESSION_EVENTS[flash_idxs_avail_run[0]]["isi"]
 
-		# Compute minimum index gap from the temporal constraint.
-		# Use the ISI of events belonging to this run (take the first eligible one
-		# as representative, or the median if ISI varies within a run).
-		onset_times = {}
-		for ix in eligible:
-			tone_period = par["TONE_DURATION"] + + SESSION_EVENTS[ix]["isi"]
-			onset_times[ix] = ix * tone_period + 2 * par["TONE_DURATION"]
-
-		# Random selection ensuring minimum temporal distance is met
+		# Random selection ensuring minimum temporal distance
 		selected = []
-		pool = list(eligible)
-		while len(selected) < flash_run and pool:
-			candidate = random.choice(pool)
-			if all(
-				abs(onset_times[candidate] - onset_times[s]) >= flash_distance
-				for s in selected
-			):
+		pool = list(flash_idxs_avail_run)
+		random.shuffle(pool)
+		for candidate in pool:
+			if len(selected) >= flash_run:
+				break
+			if all(abs(candidate - idx_selected) * tone_period >= flash_distance for idx_selected in selected):
 				selected.append(candidate)
-				pool.remove(candidate)
-			else:
-				pool.remove(candidate)
 
 		for idx in selected:
 			SESSION_EVENTS[idx]["flash_rep"] = random.randint(1, par["FLASH_REP_MAX"])
@@ -471,24 +478,24 @@ def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 				par["FLASH_ISI_MIN"],
 				par["FLASH_ISI_MAX"])
 
+		print(f"Selected flash idxs: {len(selected)}\n")
+
 	# 04. BUILD FLASH-ONLY DATAFRAME ------------------------------------------
 	FLASH_EVENTS = []
 	for tone_ix, se in enumerate(SESSION_EVENTS):
-		if not pd.isna(se["flash_rep"]) or not pd.isna(se["flash_isi"]):
+		if not pd.isna(se["flash_rep"]) and not pd.isna(se["flash_isi"]):
 			
 			# Position of this event within its run (0-based)
 			run_start, _ = run_boundaries[se["run_idx"]]
 			run_ix = tone_ix - run_start
-			
+
 			# Calculate tone period (can differ per run, depending on ISI)
 			tone_period = par["TONE_DURATION"] + se["isi"]
 
-			# Onset of the flash must occur within the ISI of the tone
-			# at least "TONE_DURATION" time after the tone has ended for 
-			# perceptual separability between audio & visual stimuli.
+			# Onset of the flash
 			onset_time  = run_ix * tone_period + 2 * par["TONE_DURATION"]
 			
-			# Append a flash event if minimum distance ensured
+			# Append a flash event
 			flashing_duration = (
 				(se["flash_rep"] - 1) * se["flash_isi"]
 				+ se["flash_rep"] * par["FLASH_DURATION"]

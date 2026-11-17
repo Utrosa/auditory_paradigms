@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-# Time-stamp: <16-11-2026, m.utrosa@bcbl.eu>
+# Time-stamp: <17-11-2026, m.utrosa@bcbl.eu>
 '''
 Configuration of variables for creation of main task stimuli and presentation of the task.
 Requires Expyriment version 1.0.0
@@ -22,7 +22,12 @@ params = {
     # Overall structure of the experimental session ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     "DEVELOP_MODE" : True,
     "NO_MRI_RUNS" : 5,       # How many functional runs are in one session?
-    "RUN_DURATION_MIN" : 12, # Duration of the functional run in minutes
+    "RUN_DURATION_MIN" : 12, # Planned duration of the functional run in minutes
+                             # ≠ to actual duration because GAPS between deviants
+                             # are randomly sampled, and once all deviants are placed in
+                             # in the planned duration, the remaining standard tones are
+                             # truncated to a random number between MIN_STD_END and 
+                             # MAX_STD_END.
 
     # Timing and pitch deviant tones ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     "TIM_DEVS"    : [4, 8, 13, 19, 27, 36, 48, 63, 80, 100, 125], # msec
@@ -50,7 +55,7 @@ params = {
     "FLASH_POSITION" : (0, 0), # (0,0) is the center of the screen
     "FLASH_RADIUS"   : 45,     # Size of the disk
     "FLASH_PROB"     : 0.05,   # Probability of the flash
-    "FLASH_REP_MAX"  : 1,      # How many times max can the disk flash?
+    "FLASH_REP_MAX"  : 2,      # How many times max can the disk flash?
                                # If 4, it means there could be 1, 2, 3 or 4
                                # flashes per tone period (tone duration + 
                                # ISI. That's the max because we only
