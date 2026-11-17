@@ -32,7 +32,7 @@ no_runs  = len(df_tones["run_idx"].unique())
 
 # Load audio files for the current session and sort by run number
 main_task_wavs = list(c.outPath.glob("**/*.wav"))
-main_task_audio = [file_1 for file_1 in main_task_wavs if f"ses-{sesID:02d}" in str(file_1)]
+main_task_audio = [file_1 for file_1 in main_task_wavs if f"ses-{sesID:02d}" and f"sub-{subID:02d}" in str(file_1)]
 main_task_audio.sort()
 
 # 03. INITIALIZE THE EXPERIMENT ----------------------------------------------------------

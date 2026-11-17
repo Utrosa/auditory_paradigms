@@ -19,7 +19,7 @@ from collections import Counter
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # 02. FUNCTION
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
+def create_experimental_sessions(par, comboID, save_csv=False, out_path=False):
 	
 	# 01. GENERATE INDEPENDENT VARIABLES --------------------------------------
 	# Create negative values for deviations.
@@ -518,12 +518,12 @@ def create_experimental_sessions(par, sesID, save_csv=False, out_path=False):
 		out_path.mkdir(exist_ok=True, parents=True)
 
 		# TONES DF
-		tones_fnm =  f"ses-{sesID:003d}_exp_parameter_combo.csv"
+		tones_fnm =  f"exp_parameter_combo-{comboID:003d}.csv"
 		out_dir   = out_path / tones_fnm
 		TONES_DF.to_csv(out_dir, sep=",", index=False)
 
 		# FLASH DF
-		flash_fnm =  f"ses-{sesID:003d}_exp_distractor_combo.csv"
+		flash_fnm =  f"exp_distractor_combo-{comboID:003d}.csv"
 		out_dir   = out_path / flash_fnm
 		FLASH_DF.to_csv(out_dir, sep=",", index=False)
 
@@ -540,14 +540,14 @@ if __name__ == "__main__":
 	import config_timfreq as c
 
 	# Ask for user-defined parameters
-	sim = input("How many experimental sessions to simulate:")
+	sim = input("How many parameter combinations (sessions) to simulate:")
 	simID = int(sim)
 
 	# Simulate
-	for session in range(1, simID + 1):
+	for combo in range(1, simID + 1):
 		with open(
-			c.outPath / f"ses-{session:003d}_exp_parameter_combo.txt",
+			c.outPath / f"exp_parameter_combo-{combo:003d}.txt",
 			"w"
 			) as f:
 			sys.stdout = f
-			create_experimental_sessions(params, session, True, c.outPath)
+			create_experimental_sessions(params, combo, True, c.outPath)

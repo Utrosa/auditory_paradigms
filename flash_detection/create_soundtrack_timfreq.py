@@ -13,7 +13,6 @@ TODOs: add and verify correctnes of logging tones (end & current time)
 # 01. IMPORT
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 import csv
-import warnings
 import numpy as np
 import pandas as pd
 import soundfile as sf
@@ -102,31 +101,22 @@ class SoundGen:
 
         return sound
 
-    def generate_soundtrack(self, df, current_time, max_amplitude, num_harmonics, tone_duration, harmonic_factor, dbspl, verbose=False):
+    def generate_soundtrack(self, df, current_time, max_amplitude, num_harmonics, tone_duration, harmonic_factor, dbspl):
         """
-        Generate tone sequences with timing deviants for current run.
+        Generate tone sequences with timing and frequency deviants from dataframe.
 
-        :param df: A dataframe with tone sequence parameters with ms as the time unit.
-        :param current_time: Current time in the experiment in milliseconds, relative to start of the task.
+        :param df: A dataframe or its subset, containing tone sequence parameters with ms as the time unit.
+        :param current_time: Current time in milliseconds relative to start of the task.
         :param max_amplitude: Maximum amplitude to avoid clipping.
         :param num_harmonics: Number of harmonic tones.
         :param tone_duration: Duration of the tone in milliseconds.
         :param harmonic_factor: Harmonic amplitude decay factor for the tone.
-        :param dbspl: Desired dB SPL (loudness) level (cannot change post sound creation).
-        :param verbose: If True, prints updates to the terminal.
+        :param dbspl: Desired dB SPL (loudness) level.
 
         :yield: final_sequence: An array of audio samples, representing harmonic a complex tone sequence.
-        :yield: sequence_log: A text file with onset, duration, and tone timing information.
+        :yield: sequence_log: A text file with onset, duration, and tone timing and frequency information.
         """
-        current_samples = (current_time / 1000) * self.sample_rate # Convert to samples
-
-        # Reminder that we're assuming ms as the input unit
-        if verbose:
-            message = (
-                "\nAssuming input values (ISI, timing deviants, tone duration) are in milliseconds."
-                "\nVerify units in the input parameters and csv files."
-                )
-            warnings.warn(message, UserWarning)
+        current_samples = (current_time / 1000) * self.sample_rate
 
         # Initialize tone count, sequence and log
         tone_count = 0
@@ -135,7 +125,7 @@ class SoundGen:
 
         # Get tone samples (only once)
         tone_duration = tone_duration / 1000
-        tone_samples = int(tone_duration * self.sample_rate)
+        tone_samples  = int(tone_duration * self.sample_rate)
 
         # Loop through all rows of the dataframe
         # Each row is a linear combination of its column values
@@ -143,7 +133,7 @@ class SoundGen:
 
             # --------------- Get EVENT samples ---------------------
             # ----------------- Adding TONES
-            # Generate a standard tone
+            # Generate the tone
             if pd.isna(row.dev_cat):
                 sound = self.sound_maker(
                     row.base_freq,
@@ -151,8 +141,7 @@ class SoundGen:
                     num_harmonics,
                     tone_duration,
                     harmonic_factor,
-                    dbspl
-                )
+                    dbspl)
             else: # Deviant tones have a category
 
                 # Generate a frequency standard tone
@@ -163,8 +152,7 @@ class SoundGen:
                             num_harmonics,
                             tone_duration,
                             harmonic_factor,
-                            dbspl
-                            )
+                            dbspl)
 
                 # Generate a frequency deviant tone
                 elif row.dev_cat == 'pitch':
@@ -177,20 +165,18 @@ class SoundGen:
                             num_harmonics,
                             tone_duration,
                             harmonic_factor,
-                            dbspl
-                            )
+                            dbspl)
                 
                 # Raise error
                 else:
                     raise ValueError(
                         f"Unrecognized deviant category: {row.dev_cat}. "
-                        "Please check the input file."
-                    ) 
+                        "Please check the input file.") 
 
             # Apply ramp to the start and the end
             ramped_sound = self.sine_ramp(sound)
 
-            # Identify tone type
+            # Identify the tone type
             if not pd.isna(row.dev): # DEVIANTS
                 if row.dev > 0: # Positive deviants
                     if row.dev_cat == "timing":
@@ -203,59 +189,57 @@ class SoundGen:
                     elif row.dev_cat == "pitch":
                         tone_type = f"fStd-{int(row.base_freq)}Hz_fDev-n{dev_freq}Hz_type-fDevtStd"
                 else:
-                    raise ValueError("Deviant not larger or smaller than 0.")
+                    raise ValueError("The deviancy is not larger or smaller than 0.")
 
             else: # STANDARDS
                 tone_type = f"fStd-{int(row.base_freq)}Hz_type-fStdtStd"
 
             # Log tones
-            onset_sec = current_samples / self.sample_rate
+            onset_sec  = round(current_samples / self.sample_rate, 2)
             log_format = f"{onset_sec}\t{tone_duration}\t{tone_type}\n"
             sequence_log = sequence_log + log_format
 
-            # Add the sound to the sequence
+            # Add the sound to the sequence and update counts
             sequence.append(ramped_sound)
             current_samples += tone_samples
             tone_count += 1
 
             # ----------------- Adding ISI
-            # Convert milliseconds to seconds and get no. isi samples
-            isi = row.isi / 1000
-            isi_samples  = int(isi * self.sample_rate)
+            # Convert to seconds and get samples
+            isi_samples  = int((row.isi / 1000) * self.sample_rate)
             
-            # Add one less ISI. Sequence ends with a tone.
+            # Add one less ISI to end the sequence with a tone.
             if tone_count < len(df) - 1:
                 
                 # Get the number of samples for a standard isi
                 current_isi = isi_samples
 
                 # Adjust the ISI before or after a timing deviant
-                # Check current event, for ISI after timDev
+                ## Check current event
                 if row.dev_cat == 'timing':
 
                     # Get the number of deviant samples
-                    dev = row.dev_abs / 1000
-                    dev_samples  = int(dev * self.sample_rate)
+                    dev_samples  = int((row.dev_abs / 1000) * self.sample_rate)
                     
+                    # Add or remove the samples
                     if row.dev_dir == 'early':
                         current_isi = isi_samples + dev_samples
                     elif row.dev_dir == 'late':
                         current_isi = isi_samples - dev_samples
                 
                 else:
-                    # Check the next variables
+                    ## Check the next event
                     is_next_timDev  = df.iloc[tone_count + 1]['dev_cat']
                     next_timDev_dir = df.iloc[tone_count + 1]['dev_dir']
                     next_dev_delta  = df.iloc[tone_count + 1]['dev_abs']
                     
-                    # Adjust the ISI after a timing deviant
+                    # Adjust the ISI before a timing deviant
                     if pd.isna(is_next_timDev): # Standard ISI
                         current_isi = isi_samples
                     elif is_next_timDev == 'timing': # Deviant ISI
                         
                         # Get the number of deviant samples
-                        dev = next_dev_delta / 1000
-                        dev_samples  = int(dev * self.sample_rate)
+                        dev_samples  = int((next_dev_delta / 1000) * self.sample_rate)
                         
                         # Get the number of current ISI samples
                         if next_timDev_dir == 'early':
@@ -267,8 +251,7 @@ class SoundGen:
                     else:
                         raise ValueError(
                             f"Undefined next deviant category: {is_next_timDev}. "
-                            "Please check the input file or add silent tone."
-                        )
+                            "Please check the input file or add silent tone.")
 
                 # Append the ISI to the sequence
                 sequence.append(np.zeros(current_isi))
@@ -295,9 +278,11 @@ if __name__ == "__main__":
     import config_timfreq as c
 
     # Ask for user-defined parameters
-    sesh = input("Enter the session number:")
-    sesID = int(sesh)
-    parPath  = c.outPath / f"ses-{sesID:03d}_exp_parameter_combo.csv"
+    sub    = input("Enter the subject number:")
+    sesh   = input("Enter the session number:")
+    combo  = input("Enter the combo number:")
+    sesID, subID, comboID = int(sesh), int(sub), int(combo)
+    parPath  = c.outPath / f"exp_parameter_combo-{comboID:03d}.csv"
 
     # Load the session parameters from csv
     df = pd.read_csv(parPath)
@@ -312,15 +297,14 @@ if __name__ == "__main__":
         # Correct for zero-indexing
         run_idx = run + 1
 
-        # Select only the part of the dataframe relevant for the current trial
+        # Subset the dataframe relevant for the current run
         df_run = df[df["run_idx"] == run_idx]
         
         # Initialize log for sequences
-        # TODO: add subject ID
         # TODO: either add a timestamp or change IMPORT of logfiles ...
-        out_dir = Path(f"ses-{sesID:003d}")
+        out_dir = Path(f"data_logs/sourcedata")
         out_dir.mkdir(parents=True, exist_ok=True)
-        log_path = out_dir / f"ses-{sesID:02d}_task-timfreqDev_run-{run_idx:02d}_events.tsv"
+        log_path = out_dir / f"sub-{subID:02d}_ses-{sesID:02d}_task-flashCount_run-{run_idx:02d}_events.tsv"
 
         # Write the log file using standard file I/O
         with open(log_path, mode="w", newline="") as tsv_file:
@@ -331,7 +315,7 @@ if __name__ == "__main__":
             # Generate the soundtrack of the experimental session
             for soundtrack, sequence_log in sound_gen.generate_soundtrack(
                df_run,
-               0, # current time
+               0.00, # each run starts at zero
                params["MAX_AMPLITUDE"],
                params["NUM_HARMONICS"], 
                params["TONE_DURATION"], 
@@ -348,9 +332,8 @@ if __name__ == "__main__":
 
                 # Optionally, save the run soundtrack as a .wav file
                 if c.write_wav:
-                    filename = f"exp_ses-{sesID:02d}_run_{run_idx:02d}.wav"
+                    filename = f"sub-{subID:02d}_ses-{sesID:02d}_run-{run_idx:02d}.wav"
                     sf.write(
                         c.outPath / filename,
                         soundtrack,
-                        params["SAMPLE_RATE"]
-                    )
+                        params["SAMPLE_RATE"])
