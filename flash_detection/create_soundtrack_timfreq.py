@@ -23,9 +23,7 @@ import sounddevice as sd
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # 02. FUNCTIONS & CLASSES
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# TODO: Correct for HL and SPL
-# This is minor for small differences in standard frequency
-# Would be best that a new standard is not a deviant possibility of a previous standard ...
+# TODO: Correct for HL and SPL This is minor for small differences in standard frequency
 
 def set_dbspl(sound, dbspl, ref=20e-6):
     """
@@ -172,8 +170,9 @@ class SoundGen:
 
                 # Generate a frequency deviant tone
                 elif row.dev_cat == 'pitch':
+
                     # Round deviant Hz value to 0.1
-                    dev_freq = round(row.base_freq * (2**row.dev), 1)
+                    dev_freq = round(row.base_freq * (2 ** row.dev), 1)
                     sound = self.sound_maker(
                             dev_freq,
                             max_amplitude,

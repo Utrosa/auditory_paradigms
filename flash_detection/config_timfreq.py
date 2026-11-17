@@ -50,7 +50,7 @@ params = {
     "FLASH_POSITION" : (0, 0), # (0,0) is the center of the screen
     "FLASH_RADIUS"   : 45,     # Size of the disk
     "FLASH_PROB"     : 0.05,   # Probability of the flash
-    "FLASH_REP_MAX"  : 2,      # How many times max can the disk flash?
+    "FLASH_REP_MAX"  : 1,      # How many times max can the disk flash?
                                # If 4, it means there could be 1, 2, 3 or 4
                                # flashes per tone period (tone duration + 
                                # ISI. That's the max because we only
