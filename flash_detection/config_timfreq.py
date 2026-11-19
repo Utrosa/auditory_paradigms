@@ -162,27 +162,31 @@ def feedback_flash(current_event, response, good, bad):
 
     Returns:
     - perfo_code: The response category (str).
-    - trial_performance: Dictionary tracking performance across trials (dict).
+    - trial_performance: Tracking performance across trials (dict).
     '''
     perfo_code = None
     trial_performance = {"CORRECT": 0, "INCORRECT": 0}
     
-    # Correct for MRI buttons
+    # ----- Response trials ----- 
     if response is not None:
+        
+        # Compare variables of the same type (str)
         response_str = chr(response)
-    else:
-        response_str = "None"
+        current_event_str = str((int(current_event)))
 
-    # Ensure that you are comparing variables of the same type (str)
-    current_event_str = str((int(current_event)))
-
-    # ----- Correct count -----
-    if current_event_str == response_str:
-        good.present()
-        trial_performance["CORRECT"] += 1
-        perfo_code = "CORRECT"
-    
-    # ----- Incorrect count ----- 
+        # ----- Correct count -----
+        if current_event_str == response_str:
+            good.present()
+            trial_performance["CORRECT"] += 1
+            perfo_code = "CORRECT"
+        
+        # ----- Incorrect count ----- 
+        else:
+            bad.present()
+            trial_performance["INCORRECT"] += 1
+            perfo_code = "INCORRECT"
+   
+    # ----- No response trials ----- 
     else:
         bad.present()
         trial_performance["INCORRECT"] += 1

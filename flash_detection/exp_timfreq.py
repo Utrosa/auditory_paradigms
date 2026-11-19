@@ -1,11 +1,9 @@
 #! /usr/bin/env python
-# Time-stamp: <10-11-2026, m.utrosa@bcbl.eu>
+# Time-stamp: <19-11-2026, m.utrosa@bcbl.eu>
 '''
 Requires Expyriment version 1.0.0
-TODO: integrate feedback with max response time
 TODO: log events
 TODO: test timing of events
-TODO: max response period is the minimum separation of two flashes
 '''
 from expyriment import design, control, stimuli, misc, io
 from config_timfreq import params, twitch, feedback_flash
@@ -16,14 +14,15 @@ import ast
 from datetime import datetime
 
 # 01. USER-DEFINED PARAMETERS ------------------------------------------------------------
-idx  = input("Enter the index of exp_parameter_combo csv:")
-sesh = input("Enter the session number:")
-comboID, sesID = int(idx), int(sesh)
+sub    = input("Enter the subject number:")
+sesh   = input("Enter the session number:")
+combo  = input("Enter the combo number:")
+comboID, sesID, subID = int(combo), int(sesh), int(sub)
 control.set_develop_mode(on = params["DEVELOP_MODE"])
 
 # 02. PRECOMPUTED PARAMETERS -------------------------------------------------------------
-tonesPath = c.outPath / f"ses-{comboID:03d}_exp_parameter_combo.csv"
-flashPath = c.outPath / f"ses-{comboID:03d}_exp_distractor_combo.csv"
+tonesPath = c.outPath / f"exp_parameter_combo-{comboID:03d}.csv"
+flashPath = c.outPath / f"exp_distractor_combo-{comboID:03d}.csv"
 
 # Load the dataframe
 df_tones = pd.read_csv(tonesPath)
@@ -34,6 +33,7 @@ no_runs  = len(df_tones["run_idx"].unique())
 main_task_wavs = list(c.outPath.glob("**/*.wav"))
 main_task_audio = [file_1 for file_1 in main_task_wavs if f"ses-{sesID:02d}" and f"sub-{subID:02d}" in str(file_1)]
 main_task_audio.sort()
+print(main_task_audio)
 
 # 03. INITIALIZE THE EXPERIMENT ----------------------------------------------------------
 # Settings to ensure that the window size fits the stimuli computer & projector in the MRI
@@ -162,8 +162,9 @@ for run in range(no_runs):
 	# Extract variables specific to the current run
 	run_idx = run + 1
 	flash_run = df_flash[df_flash["run_idx"] == run_idx]
-	main_audio_values = main_audio.get(f"run_{run_idx:02d}")
-
+	main_audio_values = main_audio.get(f"run-{run_idx:02d}")
+	print(f"\nDICT:\n{main_audio}")
+	print(f"\nVALUES:\n{main_audio_values}")
 	# Check if quit key is pressed
 	keyboard.check(keys=[misc.constants.K_y])	
 
@@ -271,7 +272,7 @@ for run in range(no_runs):
 				)
 				exp.clock.wait(params["MAX_FEEDBACK_TIME"])
 				canvas.present() # Refresh the screen
-	
+
 	# Save the run-level log
 	flash_log.rename(f"sub-{exp.subject:02d}_ses-{sesID:02d}_task-flash_ts-{ts}_events.tsv")
 	flash_log.save()
