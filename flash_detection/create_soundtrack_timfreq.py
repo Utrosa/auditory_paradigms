@@ -306,7 +306,7 @@ if __name__ == "__main__":
         # TODO: either add a timestamp or change IMPORT of logfiles ...
         out_dir = Path(f"data_logs/sourcedata")
         out_dir.mkdir(parents=True, exist_ok=True)
-        log_path = out_dir / f"sub-{subID:02d}_ses-{sesID:02d}_task-flashCount_run-{run_idx:02d}_events.tsv"
+        log_path = out_dir / f"sub-{subID:02d}_ses-{sesID:02d}_task-timfreq_run-{run_idx:02d}_events.tsv"
 
         # Write the log file using standard file I/O
         with open(log_path, mode="w", newline="") as tsv_file:

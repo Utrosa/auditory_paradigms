@@ -19,7 +19,7 @@ from collections import Counter
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # 02. FUNCTION
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def create_experimental_sessions(par, comboID, save_csv=False, out_path=False):
+def create_experimental_sessions(par, subID, sesID, comboID, save_csv=False, out_path=False):
 	
 	# 01. GENERATE INDEPENDENT VARIABLES --------------------------------------
 	# Create negative values for deviations.
@@ -487,7 +487,7 @@ def create_experimental_sessions(par, comboID, save_csv=False, out_path=False):
 
 		print(f"Selected flash idxs: {len(selected)}\n")
 
-	# 04. BUILD FLASH-ONLY DATAFRAME ------------------------------------------
+	# 04. BUILD A FLASH-ONLY DATAFRAME ----------------------------------------
 	FLASH_EVENTS = []
 	for tone_ix, se in enumerate(SESSION_EVENTS):
 		if not pd.isna(se["flash_rep"]):
@@ -539,6 +539,41 @@ def create_experimental_sessions(par, comboID, save_csv=False, out_path=False):
 
 		# Print update to terminal/txt
 		print(f"\nSaved {tones_fnm} and {flash_fnm} to {out_path}.")
+	
+	# 06. CREATE A FLASH LOGFILE FROM DATAFRAME -------------------------------
+	for run in range(par["NO_MRI_RUNS"]):
+
+		# Filename and output path
+		out_path.mkdir(exist_ok=True, parents=True)
+		run_idx = run + 1
+		flash_fnm =  f"sub-{subID:02d}_ses-{sesID:02d}_task-flashCount_run-{run_idx:02d}_events.tsv"
+		flash_out = out_path / flash_fnm
+		
+		# Subset dataframe for current run
+		current_df = FLASH_DF[FLASH_DF["run_idx"] == run_idx]
+		current_df.reset_index(inplace=True)
+
+		# Initialize run log
+		run_log = str()
+
+		# Write the log file using standard file I/O
+		with open(flash_out, mode="w", newline="") as tsv_file:
+
+			# Write header
+			tsv_file.write("onset\tduration\ttrial_type\n")
+
+			for idx, row in current_df.iterrows():
+				if row['isi']:
+					flash_type = f"Nrep-{row['n_reps']}_isi-{row['isi']}"
+				else:
+					flash_type = f"Nrep-{row['n_reps']}"
+				
+				# Write row
+				log_format = f"{row['onset']}\t{row['duration']}\t{flash_type}\n"
+				run_log = run_log + log_format
+
+			# Save relevant info to log for current run
+			tsv_file.write(run_log)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # 03. SIMULATION OF EXPERIMENTAL SESSIONS
@@ -550,8 +585,10 @@ if __name__ == "__main__":
 	import config_timfreq as c
 
 	# Ask for user-defined parameters
-	sim = input("How many parameter combinations (sessions) to simulate:")
-	simID = int(sim)
+	sim  = input("How many parameter combinations (sessions) to simulate:")
+	sub  = input("Enter the subject number (for FLASH LOG):")
+	sesh = input("Enter the session number (for FLASH LOG):")
+	simID, sesID, subID =  int(sim), int(sesh), int(sub)
 
 	# Simulate
 	for combo in range(1, simID + 1):
@@ -560,4 +597,4 @@ if __name__ == "__main__":
 			"w"
 			) as f:
 			sys.stdout = f
-			create_experimental_sessions(params, combo, True, c.outPath)
+			create_experimental_sessions(params, subID, sesID, combo, True, c.outPath)
