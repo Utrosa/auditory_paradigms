@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-# Time-stamp: <19-11-2026, m.utrosa@bcbl.eu>
+# Time-stamp: <20-11-2026, m.utrosa@bcbl.eu>
 '''
 Requires Expyriment version 1.0.0
 TODO: log events
@@ -10,6 +10,7 @@ from config_timfreq import params, twitch, feedback_flash
 import config_timfreq as c
 from pathlib import Path
 import pandas as pd
+import numpy as np
 import ast
 from datetime import datetime
 
@@ -27,9 +28,8 @@ logsPath = c.projPath / f"flash_logs/sub-{subID:02d}/ses-{sesID:02d}"
 logsPath.mkdir(exist_ok=True, parents=True)
 
 # Load the dataframe
-df_tones = pd.read_csv(tonesPath)
 df_flash = pd.read_csv(flashPath)
-no_runs  = len(df_tones["run_idx"].unique())
+no_runs  = len(df_flash["run_idx"].unique())
 
 # Load audio files for the current session and sort by run number
 main_task_wavs = list(c.outPath.glob("**/*.wav"))
@@ -120,11 +120,17 @@ correct = stimuli.FixCross(
 	line_width = params["FIXATION_CROSS_WIDTH"], 
 	colour = params["CORRECT"]
 	)
-wrong.preload()
-correct.preload()
 
 # Plotting
 fix_cross.plot(canvas)
+
+# Preloading for faster presentation
+fix_cross.preload()
+canvas.preload()
+blank_canvas.preload()
+wrong.preload()
+correct.preload()
+circle.preload()
 
 # Audio files for main task
 main_audio = {mta.stem.split(f"ses-{sesID:02d}_")[1]: stimuli.Audio(str(mta)) for mta in main_task_audio}
@@ -142,10 +148,10 @@ task_name = "counting"
 # Present instructions for the counting task and wait a minimal time needed to read them.
 instructions_task.present()
 exp.clock.wait(params["READING_TIME"])
-instructions_task.clear_surface()
 keyboard.wait(keys=params['DETECTION_SYMBOL'])
 
 # Clear instructions and show a blank screen.
+instructions_task.clear_surface()
 blank_canvas.present()
 
 # Loop through the runs. Equivalent to looping through "main_audio" 
@@ -173,16 +179,21 @@ for run in range(no_runs):
 	canvas.present()
 
 	# Mark the start of the functional sequence
-	task_start_time = exp.clock.time
+	run_start_time = exp.clock.time
 
+	print(f"---- RUN:{run_idx} ----")
+	print(f"Run start: {run_start_time}")
+	
 	# Wait for 4 's' keys from the scanner to synchronize scanner & script onsets.
 	keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
 	keyboard.wait(keys=[misc.constants.K_s]); keyboard.wait(keys=[misc.constants.K_s])
 	
-	# Play the sequence and mark the starting time of the run/audio.
-	run_start_time = exp.clock.time - task_start_time
+	# Mark the starting time of the task.
+	task_start_time = exp.clock.time
+	print(f"Task start: {task_start_time - run_start_time}")
+	
+	# Play the audio stimuli
 	main_audio_values.play()
-	print(f"---- RUN:{run_idx} ----")
 
 	# While playing the main task audiofile, flash the disk.
 	while main_audio_values.is_playing:
@@ -194,43 +205,34 @@ for run in range(no_runs):
 		for _, row in flash_run.iterrows():
 
 			# Wait until the onset time for the distractor
-			while clock.time - run_start_time < row.onset:
+			while exp.clock.time - task_start_time < row.onset:
 				if not main_audio_values.is_playing:
 					break
-
-			if not main_audio_values.is_playing:
-				break  # exit the for loop too
 			
-			flash_start_time = clock.time
-			print(f"Start flash loop: {flash_start_time}")
-
-			# Get time for the start of the flash and wait until that time
-			flash_start = flash_start_time + row["onset"]
-			while flash_start - clock.time > 0:
-				keyboard.check(keys=[misc.constants.K_y])
-
-			print(f"Start twitch: {clock.time}")
-			print(f"Programmed start twitch: {flash_start}")
-
-			# Twitch
-			for _ in range(row["n_reps"]):
+			if not main_audio_values.is_playing:
+				break
+			
+			# Start twitch at onset
+			twons = exp.clock.time
+			for _ in range(int(row["n_reps"])):
 				twitch(
-					stimulus = circle,
-					duration = params["FLASH_DURATION"],
-					isi      = int(row["isi"]),
-					screen   = canvas,
-					clock    = clock,
-					keyboard = keyboard
-					)
-			print(f"End twitch: {clock.time}")
+						stimulus = circle,
+						duration = params["FLASH_DURATION"],
+						isi      = row["isi"],
+						screen   = canvas,
+						clock    = clock,
+						keyboard = keyboard
+						)
+			twend = exp.clock.time
+			print(f"Actual twitch duration: {abs((twons - task_start_time) - (twend - task_start_time))}")
+			print(f"Programmed twitch duration: {row.duration}\n\n")
 
 			# Collect responses only if twitched & within max response period
 			response, rt, perfo_code = None, None, None
-			response_time_start = clock.time
-			print(f"\nStart response time: {response_time_start}")
+			response_time_start = exp.clock.time
 
 			# Check for key presses with max response time
-			while clock.time - response_time_start < params["MAX_RESPONSE_TIME"]:
+			while exp.clock.time - response_time_start < params["MAX_RESPONSE_TIME"]:
 
 				# Non-blocking function to check for pressed keys
 				keys = keyboard.read_out_buffered_keys()
@@ -240,27 +242,18 @@ for run in range(no_runs):
 					response = keys[-1]      # If multiple, we take the last key
 
 					# Get time of key press
-					key_press_time = clock.time / 1000
+					key_press_time = exp.clock.time / 1000
 					
 					# Get reaction time
-					rt = (clock.time - response_time_start) / 1000
-				
-					print(f"End response time: {clock.time}")
-					print(f"Reaction time: {rt}")
+					rt = (exp.clock.time - response_time_start) / 1000
 
 					# Show feedback
-					print(f"\nStart feedback function: {clock.time}")
 					perfo_code, run_performance = feedback_flash(
 						row["n_reps"], # Actual number of flashes
 						response,      # Participant's count
 						correct,       # Fixation cross for correct responses
 						wrong          # Fixation cross for incorrect responses
 					)
-					print(f"End feedback function: {clock.time}")
-					
-					print(f"\nValue: {row['n_reps']}; ISI: {row['isi']}")
-					print(f"Response: {response}")
-					print(f"Feedback: {perfo_code}")
 					
 					# Log the responses
 					flash_log.write(f"{key_press_time}\t100\t{chr(response)}\t{rt}\n")
@@ -268,8 +261,7 @@ for run in range(no_runs):
 					# Refresh the screen after max time for seeing feedback
 					exp.clock.wait(params["MAX_FEEDBACK_TIME"])
 					canvas.present() # Refresh the screen
-					print(f"End flash loop: {clock.time}")
-				
+
 			# ------ No-key trials ------   
 			if not response:
 				perfo_code, run_performance = feedback_flash(

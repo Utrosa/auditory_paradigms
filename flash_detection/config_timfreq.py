@@ -165,7 +165,6 @@ def feedback_flash(current_event, response, good, bad):
     - trial_performance: Tracking performance across trials (dict).
     '''
     perfo_code = None
-    trial_performance = {"CORRECT": 0, "INCORRECT": 0}
     
     # ----- Response trials ----- 
     if response is not None:
@@ -200,15 +199,16 @@ def twitch(stimulus, duration, isi, screen, clock, keyboard):
     then removed from the canvas screen. The empty screen is presented 
     for the same waiting time before another flash is drawn on the canvas.
     '''
-    # Check for quit key
-    keyboard.check(keys=[misc.constants.K_y])
     
     # Present the stimulus for the specified duration
-    stimulus.present()
-    clock.wait(duration)
+    s_int = stimulus.present()
+    w_int = duration - s_int
+    clock.wait(w_int)
 
     # Present the screen (without the stimulus)
-    screen.present()
+    st_int = screen.present()
 
     # Wait until presenting the stimulus again
-    clock.wait(isi)
+    if not np.isnan(isi):
+        c_int = isi - st_int
+        clock.wait(int(c_int), process_control_events=True)
