@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 # Original code: Ekim Celikay, e.celikay@bcbl.eu
-# Adapted: <17-11-2026, m.utrosa@bcbl.eu>
+# Adapted: <20-11-2026, m.utrosa@bcbl.eu>
 '''
 The create_soundtrack_soundgen() module generates sounds as defined in an 
 imported .csv file. The generate soundtracks (sound arrays) are saved as 
@@ -158,7 +158,7 @@ class SoundGen:
                 elif row.dev_cat == 'pitch':
 
                     # Round deviant Hz value to 0.1
-                    dev_freq = round(row.base_freq * (2 ** row.dev), 1)
+                    dev_freq = round(row.base_freq * (2 ** row.dev), 3)
                     sound = self.sound_maker(
                             dev_freq,
                             max_amplitude,
@@ -180,29 +180,29 @@ class SoundGen:
             if not pd.isna(row.dev): # DEVIANTS
                 if row.dev > 0: # Positive deviants
                     if row.dev_cat == "timing":
-                        tone_type = f"fStd-{int(row.base_freq)}Hz_delta-p{int(row.dev_abs)}ms_type-fStdtDev"
+                        tone_type = f"f-{int(row.base_freq)}Hz_type-fStdtDev_delta-p{int(row.dev_abs)}ms"
                     elif row.dev_cat == "pitch":
-                        tone_type = f"fStd-{int(row.base_freq)}Hz_fDev-p{dev_freq}Hz_type-fDevtStd"
+                        tone_type = f"f-{int(dev_freq)}Hz_type-fDevtStd_delta-p{round(row.dev_abs, 3)}st"
+
                 elif row.dev < 0: # Negative deviants
                     if row.dev_cat == "timing":
-                        tone_type = f"fStd-{int(row.base_freq)}Hz_delta-n{int(row.dev_abs)}ms_type-fStdtDev"
+                        tone_type = f"f-{int(row.base_freq)}Hz_type-fStdtDev_delta-n{int(row.dev_abs)}ms"
                     elif row.dev_cat == "pitch":
-                        tone_type = f"fStd-{int(row.base_freq)}Hz_fDev-n{dev_freq}Hz_type-fDevtStd"
+                        tone_type = f"f-{int(dev_freq)}Hz_type-fDevtStd_delta-n{round(row.dev_abs, 3)}st"
                 else:
                     raise ValueError("The deviancy is not larger or smaller than 0.")
 
             else: # STANDARDS
-                tone_type = f"fStd-{int(row.base_freq)}Hz_type-fStdtStd"
+                tone_type = f"f-{int(row.base_freq)}Hz_type-fStdtStd"
 
             # Log tones
-            onset_sec  = round(current_samples / self.sample_rate, 2)
+            onset_sec  = round(current_samples / self.sample_rate, 3)
             log_format = f"{onset_sec}\t{tone_duration}\t{tone_type}\n"
             sequence_log = sequence_log + log_format
 
             # Add the sound to the sequence and update counts
             sequence.append(ramped_sound)
             current_samples += tone_samples
-            tone_count += 1
 
             # ----------------- Adding ISI
             # Convert to seconds and get samples
@@ -259,6 +259,8 @@ class SoundGen:
                 # Update time
                 current_samples += current_isi
 
+            # Update tone count
+            tone_count += 1
         # -------------- Join ALL segments ----------------------
         final_sequence = np.concatenate(sequence)
 

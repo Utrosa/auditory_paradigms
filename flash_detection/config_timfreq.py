@@ -31,7 +31,7 @@ params = {
 
     # Timing and pitch deviant tones ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     "TIM_DEVS"    : [4, 8, 13, 19, 27, 36, 48, 63, 80, 100, 125], # msec
-    "PIT_DEVS"    : [1/600, 1/200, 1/97, 1/55, 1/27, 1/16, 1/11, 1/7, 1/5, 1/4, 1/3],
+    "PIT_DEVS"    : [1/600, 1/200, 1/97, 1/55, 1/27, 1/16, 1/11, 1/7, 1/5, 1/4, 1/3], # semitones
                     # If base 440, freqDev: 440.5, 441.5, 443, 445.6, 451,4, 459.5, 468.6, 485.8, 505.4, 523.3, 554.4
     "TIM_DEV_REP" : 2, # How many times does a deviation repeat per run?
     "PIT_DEV_REP" : 2, # How many times does a deviation repeat per run?

@@ -474,16 +474,23 @@ def create_experimental_sessions(par, comboID, save_csv=False, out_path=False):
 
 		for idx in selected:
 			SESSION_EVENTS[idx]["flash_rep"] = random.randint(1, par["FLASH_REP_MAX"])
-			SESSION_EVENTS[idx]["flash_isi"] = random.randint(
-				par["FLASH_ISI_MIN"],
-				par["FLASH_ISI_MAX"])
+			
+			# No ISI for one repetition
+			if SESSION_EVENTS[idx]["flash_rep"] < 2:
+				SESSION_EVENTS[idx]["flash_isi"] = np.nan
+
+			# Randomly select ISI for more than 1 flash presentation
+			else:
+				SESSION_EVENTS[idx]["flash_isi"] = random.randint(
+					par["FLASH_ISI_MIN"],
+					par["FLASH_ISI_MAX"])
 
 		print(f"Selected flash idxs: {len(selected)}\n")
 
 	# 04. BUILD FLASH-ONLY DATAFRAME ------------------------------------------
 	FLASH_EVENTS = []
 	for tone_ix, se in enumerate(SESSION_EVENTS):
-		if not pd.isna(se["flash_rep"]) and not pd.isna(se["flash_isi"]):
+		if not pd.isna(se["flash_rep"]):
 			
 			# Position of this event within its run (0-based)
 			run_start, _ = run_boundaries[se["run_idx"]]
@@ -495,18 +502,21 @@ def create_experimental_sessions(par, comboID, save_csv=False, out_path=False):
 			# Onset of the flash
 			onset_time  = run_ix * tone_period + 2 * par["TONE_DURATION"]
 			
-			# Append a flash event
-			flashing_duration = (
+			# Calculate flashing duration
+			if not pd.isna(se["flash_isi"]):
+				flashing_duration = (
 				(se["flash_rep"] - 1) * se["flash_isi"]
-				+ se["flash_rep"] * par["FLASH_DURATION"]
-			)
+				+ se["flash_rep"] * par["FLASH_DURATION"])
+			else:
+				flashing_duration =  par["FLASH_DURATION"]
+
+			# Append a flash event
 			FLASH_EVENTS.append({
 				"onset"    : onset_time,
 				"duration" : flashing_duration,
 				"n_reps"   : se["flash_rep"],
 				"isi"      : se["flash_isi"],
-				"run_idx"  : se["run_idx"]
-			})
+				"run_idx"  : se["run_idx"]})
 
 	# 05. SAVE TRIALS ---------------------------------------------------------
 	# Create a dataframe from the list of dictionaries

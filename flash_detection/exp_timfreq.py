@@ -23,6 +23,8 @@ control.set_develop_mode(on = params["DEVELOP_MODE"])
 # 02. PRECOMPUTED PARAMETERS -------------------------------------------------------------
 tonesPath = c.outPath / f"exp_parameter_combo-{comboID:03d}.csv"
 flashPath = c.outPath / f"exp_distractor_combo-{comboID:03d}.csv"
+logsPath = c.projPath / f"flash_logs/sub-{subID:02d}/ses-{sesID:02d}"
+logsPath.mkdir(exist_ok=True, parents=True)
 
 # Load the dataframe
 df_tones = pd.read_csv(tonesPath)
@@ -33,7 +35,6 @@ no_runs  = len(df_tones["run_idx"].unique())
 main_task_wavs = list(c.outPath.glob("**/*.wav"))
 main_task_audio = [file_1 for file_1 in main_task_wavs if f"ses-{sesID:02d}" and f"sub-{subID:02d}" in str(file_1)]
 main_task_audio.sort()
-print(main_task_audio)
 
 # 03. INITIALIZE THE EXPERIMENT ----------------------------------------------------------
 # Settings to ensure that the window size fits the stimuli computer & projector in the MRI
@@ -155,7 +156,7 @@ for run in range(no_runs):
 	# a dictionary to track performance on this task.
 	nw = datetime.now()
 	ts = int(nw.timestamp())
-	flash_log = io.OutputFile(suffix = sesh, directory = f'combo-{comboID:003d}')
+	flash_log = io.OutputFile(suffix=sesh, directory=str(logsPath))
 	flash_log.write("onset\tduration\ttrial_type\tresponse_time\n")
 	run_performance = {"CORRECT": 0, "INCORRECT": 0}
 
@@ -163,8 +164,7 @@ for run in range(no_runs):
 	run_idx = run + 1
 	flash_run = df_flash[df_flash["run_idx"] == run_idx]
 	main_audio_values = main_audio.get(f"run-{run_idx:02d}")
-	print(f"\nDICT:\n{main_audio}")
-	print(f"\nVALUES:\n{main_audio_values}")
+
 	# Check if quit key is pressed
 	keyboard.check(keys=[misc.constants.K_y])	
 
@@ -192,6 +192,15 @@ for run in range(no_runs):
 
 		# Iterate through the flashes programmed for the current run.
 		for _, row in flash_run.iterrows():
+
+			# Wait until the onset time for the distractor
+			while clock.time - run_start_time < row.onset:
+				if not main_audio_values.is_playing:
+					break
+
+			if not main_audio_values.is_playing:
+				break  # exit the for loop too
+			
 			flash_start_time = clock.time
 			print(f"Start flash loop: {flash_start_time}")
 
@@ -253,8 +262,7 @@ for run in range(no_runs):
 					print(f"Response: {response}")
 					print(f"Feedback: {perfo_code}")
 					
-					# Log with correction of the response for MRI buttons (1 is 0 devs, ...)
-					response = response - 1
+					# Log the responses
 					flash_log.write(f"{key_press_time}\t100\t{chr(response)}\t{rt}\n")
 
 					# Refresh the screen after max time for seeing feedback
@@ -273,8 +281,10 @@ for run in range(no_runs):
 				exp.clock.wait(params["MAX_FEEDBACK_TIME"])
 				canvas.present() # Refresh the screen
 
-	# Save the run-level log
+	# Rename the logs according to BIDS standard
 	flash_log.rename(f"sub-{exp.subject:02d}_ses-{sesID:02d}_task-flash_ts-{ts}_events.tsv")
+	
+	# Save the run-level log
 	flash_log.save()
 
 	# Clearing any key presses
@@ -290,8 +300,8 @@ for run in range(no_runs):
 
 	# When the MRI QU signals acquistion end, show text with performance updates.
 	mainTask_performance = f'Correct: {run_performance["CORRECT"]}, Wrong: {run_performance["INCORRECT"]}'
-	percent_correct = f'Percentage correct: {round((run_performance["CORRECT"] / no_sound_trials) * 100)} %'
-	mainTask_progress = f'Blocks completed: {block_idx} / {no_blocks}'
+	percent_correct = f'Percentage correct: {round((run_performance["CORRECT"] / len(flash_run)) * 100)} %'
+	mainTask_progress = f'Blocks completed: {run_idx} / {no_runs}'
 	mainTask_rest = stimuli.TextScreen(
 		params["REST_HEADING"], 
 		mainTask_performance + f"\n\n{percent_correct}" + f"\n\n{mainTask_progress}" + "\n\n" + params["REST_TEXT"],
