@@ -19,7 +19,7 @@ from collections import Counter
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # 02. FUNCTION
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def create_experimental_sessions(par, subID, sesID, comboID, save_csv=False, out_path=False):
+def create_experimental_sessions(par, comboID, save_csv=False, out_path=False):
 	
 	# 01. GENERATE INDEPENDENT VARIABLES --------------------------------------
 	# Create negative values for deviations.
@@ -539,18 +539,22 @@ def create_experimental_sessions(par, subID, sesID, comboID, save_csv=False, out
 
 		# Print update to terminal/txt
 		print(f"\nSaved {tones_fnm} and {flash_fnm} to {out_path}.")
+
+def create_distractor_logs(subID, sesID, distractor_csv, log_out):
+	""" CREATE A FLASH LOGFILE FROM DATAFRAME """
+
+	# Load the dataframe
+	df = pd.read_csv(distractor_csv)
 	
-	# 06. CREATE A FLASH LOGFILE FROM DATAFRAME -------------------------------
-	for run in range(par["NO_MRI_RUNS"]):
+	# Iterate through runs
+	for run_idx in sorted(df["run_idx"].unique()):
 
 		# Filename and output path
-		out_path.mkdir(exist_ok=True, parents=True)
-		run_idx = run + 1
 		flash_fnm =  f"sub-{subID:02d}_ses-{sesID:02d}_task-flashCount_run-{run_idx:02d}_events.tsv"
-		flash_out = out_path / flash_fnm
+		flash_out = log_out / flash_fnm
 		
 		# Subset dataframe for current run
-		current_df = FLASH_DF[FLASH_DF["run_idx"] == run_idx]
+		current_df = df[df["run_idx"] == run_idx]
 		current_df.reset_index(inplace=True)
 
 		# Initialize run log
@@ -562,14 +566,17 @@ def create_experimental_sessions(par, subID, sesID, comboID, save_csv=False, out
 			# Write header
 			tsv_file.write("onset\tduration\ttrial_type\n")
 
+
 			for idx, row in current_df.iterrows():
-				if row['isi']:
-					flash_type = f"Nrep-{row['n_reps']}_isi-{row['isi']}"
+				if not pd.isna(row['isi']):
+					flash_type = f"Nrep-{int(row['n_reps'])}_isi-{round(row['isi'])}ms"
 				else:
-					flash_type = f"Nrep-{row['n_reps']}"
+					flash_type = f"Nrep-{int(row['n_reps'])}"
 				
 				# Write row
-				log_format = f"{row['onset']}\t{row['duration']}\t{flash_type}\n"
+				onset_time = row['onset'] / 1000 # Convert to sec
+				flashing_duration = row['duration'] / 1000 # Convert to sec
+				log_format = f"{onset_time}\t{flashing_duration}\t{flash_type}\n"
 				run_log = run_log + log_format
 
 			# Save relevant info to log for current run
@@ -586,15 +593,25 @@ if __name__ == "__main__":
 
 	# Ask for user-defined parameters
 	sim  = input("How many parameter combinations (sessions) to simulate:")
-	sub  = input("Enter the subject number (for FLASH LOG):")
-	sesh = input("Enter the session number (for FLASH LOG):")
-	simID, sesID, subID =  int(sim), int(sesh), int(sub)
-
-	# Simulate
-	for combo in range(1, simID + 1):
+	sub  = input("Enter the subject number for FLASH LOG:")
+	sesh = input("Enter the session number for FLASH LOG:")
+	combo  = input("Enter the parameter combination number for FLASH LOG:")
+	N, subID, sesID, comboID = int(sim), int(sub), int(sesh), int(combo)
+	
+	# Simulate sessions -------------------------------------------------------	
+	# Iterate N times
+	for combo in range(1, N + 1):
 		with open(
 			c.outPath / f"exp_parameter_combo-{combo:003d}.txt",
 			"w"
 			) as f:
 			sys.stdout = f
-			create_experimental_sessions(params, subID, sesID, combo, True, c.outPath)
+			create_experimental_sessions(params, combo, True, c.outPath)
+
+	# Create distractor logs (BIDS-compliant) ---------------------------------
+	distractor_df = c.outPath / f"exp_distractor_combo-{comboID:003d}.csv"
+	logPath = c.projPath / "data_logs" / "sourcedata"
+	logPath.mkdir(exist_ok=True, parents=True)
+
+	# Write and save logs
+	create_distractor_logs(subID, sesID, distractor_df, logPath)

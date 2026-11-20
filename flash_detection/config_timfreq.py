@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-# Time-stamp: <17-11-2026, m.utrosa@bcbl.eu>
+# Time-stamp: <20-11-2026, m.utrosa@bcbl.eu>
 '''
 Configuration of variables for creation of main task stimuli and presentation of the task.
 Requires Expyriment version 1.0.0
